@@ -5,7 +5,7 @@ import com.mosaic.lang.Future;
 /**
  *
  */
-public interface Mailbox {
+public interface MailboxSpike {
     public <T> Future<T> scheduleFromExternalThread( AsyncJob<T> job );
 
     public AsyncJob popNextJobBlocking();

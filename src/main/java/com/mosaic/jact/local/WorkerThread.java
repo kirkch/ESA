@@ -1,7 +1,7 @@
 package com.mosaic.jact.local;
 
 import com.mosaic.jact.AsyncJob;
-import com.mosaic.jact.Mailbox;
+import com.mosaic.jact.MailboxSpike;
 import com.mosaic.lang.Future;
 
 /**
@@ -9,7 +9,7 @@ import com.mosaic.lang.Future;
  */
 public class WorkerThread {
     private Thread  thread;
-    private Mailbox mailbox = new SynchronizedMailbox();
+    private MailboxSpike mailbox = new SynchronizedMailbox();
 
     public WorkerThread( String threadName ) {
         thread = new Thread( new ActorRunnable(), threadName );
