@@ -5,22 +5,21 @@ import com.mosaic.lang.EnhancedIterable;
 import com.mosaic.lang.Validate;
 
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
  */
-public class SynchronizedMailbox extends Mailbox {
+public class CASMailbox extends Mailbox {
+    private final AtomicReference<Element> jobQueueRef = new AtomicReference<Element>( null );
 
     private MailboxListener mailboxListener;
 
-    private Element head = null;
-
-
-    public SynchronizedMailbox() {
+    public CASMailbox() {
         this( new NullMailboxListener() );
     }
 
-    public SynchronizedMailbox( MailboxListener l) {
+    public CASMailbox( MailboxListener l ) {
         Validate.notNull( l, "listener" );
 
         this.mailboxListener = l;
@@ -37,31 +36,37 @@ public class SynchronizedMailbox extends Mailbox {
     public void push( AsyncJob job ) {
         Element e = new Element(job);
 
-        synchronized ( this ) {
-            Element currentHead = head;
+        while ( true ) {
+            Element currentHead = jobQueueRef.get();
 
             e.next = currentHead;
 
-            head = e;
-        }
+            boolean wasSuccessful = jobQueueRef.compareAndSet( currentHead, e );
+            if ( wasSuccessful ) {
+                mailboxListener.newPost();
 
-        mailboxListener.newPost();
+                return;
+            }
+        }
     }
 
 
     protected EnhancedIterable<AsyncJob> doPop() {
-        Element tail;
-        synchronized (this) {
-            tail = setPreviousPointersAndReturnTail( head );
+        while ( true ) {
+            Element head          = jobQueueRef.get();
+            boolean wasSuccessful = jobQueueRef.compareAndSet( head, null );
 
-            head = null;
+            Element tail = setPreviousPointersAndReturnTail( head );
+
+
+            if ( wasSuccessful ) {
+                if ( tail != null ) {
+                    mailboxListener.postCollected();
+                }
+
+                return new MBEnhancedIterable(tail);
+            }
         }
-
-        if ( tail != null ) {
-            mailboxListener.postCollected();
-        }
-
-        return new MBEnhancedIterable(tail);
     }
 
     private Element setPreviousPointersAndReturnTail( Element e ) {
@@ -121,5 +126,4 @@ public class SynchronizedMailbox extends Mailbox {
             };
         }
     }
-
 }

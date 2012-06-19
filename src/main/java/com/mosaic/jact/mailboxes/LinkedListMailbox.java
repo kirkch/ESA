@@ -5,62 +5,56 @@ import com.mosaic.lang.EnhancedIterable;
 import com.mosaic.lang.Validate;
 
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  *
  */
-public class LocklessMailbox implements Mailbox {
-    private final AtomicReference<Element> jobQueueRef = new AtomicReference<Element>( null );
+public class LinkedListMailbox extends Mailbox {
 
     private MailboxListener mailboxListener;
 
-    public LocklessMailbox() {
+    private Element head = null;
+
+
+    public LinkedListMailbox() {
         this( new NullMailboxListener() );
     }
 
-    public LocklessMailbox( MailboxListener l) {
+    public LinkedListMailbox( MailboxListener l) {
         Validate.notNull( l, "listener" );
 
         this.mailboxListener = l;
     }
 
+    public boolean maintainsOrder() {
+        return true;
+    }
 
+    public boolean isThreadSafe() {
+        return false;
+    }
 
     public void push( AsyncJob job ) {
         Element e = new Element(job);
 
-        while ( true ) {
-            Element currentHead = jobQueueRef.get();
+        e.next = head;
 
-            e.next = currentHead;
+        head = e;
 
-            boolean wasSuccessful = jobQueueRef.compareAndSet( currentHead, e );
-            if ( wasSuccessful ) {
-                mailboxListener.newPost();
-
-                return;
-            }
-        }
+        mailboxListener.newPost();
     }
 
 
-    public EnhancedIterable<AsyncJob> bulkPop() {
-        while ( true ) {
-            Element head          = jobQueueRef.get();
-            boolean wasSuccessful = jobQueueRef.compareAndSet( head, null );
+    protected EnhancedIterable<AsyncJob> doPop() {
+        Element tail = setPreviousPointersAndReturnTail( head );
 
-            Element tail = setPreviousPointersAndReturnTail( head );
+        head = null;
 
-
-            if ( wasSuccessful ) {
-                if ( tail != null ) {
-                    mailboxListener.postCollected();
-                }
-
-                return new MBEnhancedIterable(tail);
-            }
+        if ( tail != null ) {
+            mailboxListener.postCollected();
         }
+
+        return new MBEnhancedIterable(tail);
     }
 
     private Element setPreviousPointersAndReturnTail( Element e ) {

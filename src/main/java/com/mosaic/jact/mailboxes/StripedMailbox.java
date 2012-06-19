@@ -12,7 +12,7 @@ import com.mosaic.utils.MathUtils;
  * Combines multiple mailboxes into one. This spreads the load generated from many producers over multiple locks, thus
  * reducing contention. However it does so by sacrificing ordering.
  */
-public class StripedMailbox implements Mailbox {
+public class StripedMailbox extends Mailbox {
 
     private final Mailbox[]       stripes;
     private final int             bitmask;
@@ -41,13 +41,21 @@ public class StripedMailbox implements Mailbox {
         this.listener = l;
     }
 
+    public boolean maintainsOrder() {
+        return false;
+    }
+
+    public boolean isThreadSafe() {
+        return true;
+    }
+
     public void push( AsyncJob job ) {
         stripes[job.hashCode() & bitmask].push( job );
 
         listener.newPost();
     }
 
-    public EnhancedIterable<AsyncJob> bulkPop() {
+    protected EnhancedIterable<AsyncJob> doPop() {
         int                          numStripes = stripes.length;
         EnhancedIterable<AsyncJob>[] iterables  = new EnhancedIterable[numStripes];
         for ( int i=0; i<numStripes; i++ ) {

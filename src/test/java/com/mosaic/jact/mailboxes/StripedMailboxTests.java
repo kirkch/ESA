@@ -12,7 +12,7 @@ public class StripedMailboxTests extends MailboxInterfaceTestCases {
     }
 
     private StripedMailboxTests( MailboxListener l ) {
-        super( new StripedMailbox(LocklessMailbox.class,3,l), l, false );
+        super( new StripedMailbox(CASMailbox.class,3,l), l );
     }
 
 }

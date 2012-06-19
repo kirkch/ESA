@@ -12,7 +12,7 @@ public class SynchronizedMailboxTest extends MailboxInterfaceTestCases {
     }
 
     private SynchronizedMailboxTest( MailboxListener l ) {
-        super( new SynchronizedMailbox(l), l, true );
+        super( new SynchronizedMailbox(l), l );
     }
 
 }

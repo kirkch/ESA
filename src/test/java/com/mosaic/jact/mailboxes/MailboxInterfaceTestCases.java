@@ -1,6 +1,8 @@
 package com.mosaic.jact.mailboxes;
 
+import com.mosaic.jact.AsyncContext;
 import com.mosaic.jact.AsyncJob;
+import com.mosaic.lang.EnhancedIterable;
 import com.mosaic.utils.SetUtils;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -23,10 +25,10 @@ public abstract class MailboxInterfaceTestCases {
     private   boolean         guaranteesOrder;
 
 
-    protected MailboxInterfaceTestCases( Mailbox mb, MailboxListener l, boolean guaranteesOrder ) {
+    protected MailboxInterfaceTestCases( Mailbox mb, MailboxListener l ) {
         this.mailbox         = mb;
         this.mailboxListener = l;
-        this.guaranteesOrder = guaranteesOrder;
+        this.guaranteesOrder = mailbox.maintainsOrder();
     }
 
 
@@ -74,7 +76,7 @@ public abstract class MailboxInterfaceTestCases {
             verify(mailboxListener, times(2)).newPost();
         }
 
-        verifyNoMoreInteractions(mailboxListener);
+        verifyNoMoreInteractions( mailboxListener );
 
         verifyZeroInteractions( job1 );
         verifyZeroInteractions( job2 );
@@ -203,8 +205,56 @@ public abstract class MailboxInterfaceTestCases {
         }
     }
 
+
+
+    @Test
+    public void givenEmptyParentMailboxAndEmptyMailbox_pop_expectNoMail() {
+        Mailbox parent = mock( Mailbox.class );
+        when( parent.bulkPop() ).thenReturn( EnhancedIterable.EMPTY );
+
+        mailbox.chainTo( parent );
+
+        assertMailboxContains();
+    }
+
+    @Test
+    public void givenNonEmptyParentMailboxAndEmptyMailbox_pop_expectMailFromParentMailbox() {
+        AsyncJob job1 = mock( AsyncJob.class );
+        AsyncJob job2 = mock( AsyncJob.class );
+        AsyncJob job3 = mock( AsyncJob.class );
+
+        Mailbox parent = mock( Mailbox.class );
+        when( parent.bulkPop() ).thenReturn( EnhancedIterable.wrap(job1,job2,job3) );
+
+        mailbox.chainTo( parent );
+
+        assertMailboxContains( job1, job2, job3 );
+    }
+
+    @Test
+    public void givenNonEmptyParentMailboxAndNonEmptyMailbox_pop_expectOnlyMailFromMailbox() {
+        AsyncJob job1 = mock( AsyncJob.class );
+        AsyncJob job2 = mock( AsyncJob.class );
+        AsyncJob job3 = mock( AsyncJob.class );
+
+        Mailbox parent = mock( Mailbox.class );
+        when( parent.bulkPop() ).thenReturn( EnhancedIterable.wrap(job3) );
+
+        mailbox.chainTo( parent );
+
+        mailbox.push( job1 );
+        mailbox.push( job2 );
+
+        assertMailboxContains( job1, job2 );
+        assertMailboxContains( job3 );
+    }
+
     @Test
     public void concurrencyTest_fiveThreads_eachPushAndPopEvents_ensureThatEachThreadSeesConsistentOrderForTheirOwnPushAndPops() throws InterruptedException {
+        if ( !mailbox.isThreadSafe() ) {
+            return;
+        }
+
         int numProducerThreads = 5;
         int numJobsPerThread   = 2000;
 
@@ -264,7 +314,7 @@ public abstract class MailboxInterfaceTestCases {
             this.jobName      = threadNumber + " " + jobNumber;
         }
 
-        public String call() throws Exception {
+        public String invoke( AsyncContext asyncContext ) throws Exception {
             return jobName;
         }
     }
