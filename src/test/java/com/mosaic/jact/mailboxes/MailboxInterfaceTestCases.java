@@ -36,6 +36,7 @@ public abstract class MailboxInterfaceTestCases {
     public void givenNoCallsToMailbox_expectEmptyMailboxAndNoCallsToListener() {
         verifyZeroInteractions( mailboxListener );
 
+        assertTrue( mailbox.isEmpty() );
         assertFalse( mailbox.bulkPop().iterator().hasNext() );
     }
 
@@ -44,6 +45,7 @@ public abstract class MailboxInterfaceTestCases {
         AsyncJob job = mock( AsyncJob.class );
 
         mailbox.push( job );
+        assertFalse( mailbox.isEmpty() );
 
         verify(mailboxListener).newPost();
         verifyZeroInteractions( job );
@@ -59,6 +61,30 @@ public abstract class MailboxInterfaceTestCases {
         assertTrue( jobs.hasNext() );
         assertTrue( jobs.next() == job );
         assertFalse( jobs.hasNext() );
+    }
+
+    @Test
+    public void removeLastJob_expectThatToMarkTheMailboxAsEmpty() {
+        AsyncJob job = mock( AsyncJob.class );
+
+        mailbox.push( job );
+
+        mailbox.bulkPop();
+
+        assertTrue( mailbox.isEmpty() );
+    }
+
+    @Test
+    public void addMultipleJobs_bulkPop_expectQueueToBeMarkedAsEmpty() {
+        AsyncJob job1 = mock( AsyncJob.class );
+        AsyncJob job2 = mock( AsyncJob.class );
+
+        mailbox.push( job1 );
+        mailbox.push( job2 );
+
+        mailbox.bulkPop();
+
+        assertTrue( mailbox.isEmpty() );
     }
 
     @Test

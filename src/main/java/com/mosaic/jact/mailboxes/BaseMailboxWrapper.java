@@ -24,6 +24,11 @@ public class BaseMailboxWrapper extends Mailbox {
     }
 
     @Override
+    public boolean isEmpty() {
+        return wrappedMailbox.isEmpty();
+    }
+
+    @Override
     public void push( AsyncJob job ) {
         wrappedMailbox.push( job );
     }

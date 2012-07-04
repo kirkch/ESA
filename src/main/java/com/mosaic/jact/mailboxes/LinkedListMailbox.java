@@ -34,6 +34,10 @@ public class LinkedListMailbox extends Mailbox {
         return false;
     }
 
+    public boolean isEmpty() {
+        return head == null;
+    }
+
     public void push( AsyncJob job ) {
         Element e = new Element(job);
 

@@ -9,6 +9,7 @@ import com.mosaic.jact.mailboxes.StripedMailbox;
 import com.mosaic.jact.mailboxes.SynchronizedMailboxWrapper;
 import com.mosaic.lang.EnhancedIterable;
 import com.mosaic.lang.Future;
+import com.mosaic.lang.conc.Monitor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,7 +42,7 @@ import java.util.List;
  */
 public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
-    private final Object             LOCK    = new Object();
+    private final Monitor            LOCK    = new Monitor();
     private final List<WorkerThread> threads = new ArrayList<WorkerThread>();
 
     private final String schedulerName;
@@ -87,7 +88,7 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
             publicMailboxes = new Mailbox[numThreads];
             for ( int i=0; i<numThreads; i++ ) {
-                Object  lock = new Object();
+                Monitor lock          = new Monitor();
                 Mailbox publicMailbox = new SynchronizedMailboxWrapper(new NotifyAllMailboxWrapper(new LinkedListMailbox(),lock),lock);
                 publicMailboxes[i] = publicMailbox;
 
@@ -108,20 +109,24 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
     public void stop() {
         synchronized ( LOCK ) {
-            threads.clear();
-
             stripedMailbox = null;
             isRunning      = false;
+
+            for ( WorkerThread t : threads ) {
+                t.wakeUpIfWaitingOnMailbox();
+            }
+
+            threads.clear();
         }
     }
 
 
     private class WorkerThread extends Thread {
-        private Mailbox publicMailbox;
-        private Object  publicMailboxLock;
-        private Mailbox privateMailbox = new LinkedListMailbox();
+        private final Mailbox publicMailbox;
+        private final Monitor publicMailboxLock;
+        private final Mailbox privateMailbox     = new LinkedListMailbox();
 
-        public WorkerThread( String threadName, Mailbox publicMailbox, Object publicMailboxLock ) {
+        public WorkerThread( String threadName, Mailbox publicMailbox, Monitor publicMailboxLock ) {
             super(threadName);
 
             this.publicMailbox     = publicMailbox;
@@ -132,48 +137,52 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
         @Override
         public void run() {
             while ( isRunning ) {
-                runJobsFromPrivateMailbox();
+                invokeAllJobsFromPrivateMailbox();
 
-                transferJobsFromPublicMailboxToPrivateMailboxBlocking();
+                invokeJobsFromPublicMailboxBlocking();
             }
         }
 
-        private void runJobsFromPrivateMailbox() {
-            EnhancedIterable<AsyncJob> jobs;
-
-            do {
-                jobs = privateMailbox.bulkPop();
-
-                for ( AsyncJob j : jobs ) {
-                    try {
-                        j.invoke( null );
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-            } while ( !jobs.isEmpty() );
+        public void wakeUpIfWaitingOnMailbox() {
+            synchronized ( publicMailboxLock ) {
+                publicMailboxLock.notifyAll();
+            }
         }
 
-        private void transferJobsFromPublicMailboxToPrivateMailboxBlocking() {
-            EnhancedIterable<AsyncJob> jobs = publicMailbox.bulkPop();
+        private void invokeAllJobsFromPrivateMailbox() {
+            boolean jobsRan = invokeJobs( publicMailbox );
 
-            while ( jobs.isEmpty() && isRunning ) {
+            while ( jobsRan ) {
+                jobsRan = invokeJobs( publicMailbox );
+            }
+        }
+
+        private void invokeJobsFromPublicMailboxBlocking() {
+            boolean jobsRan = invokeJobs( publicMailbox );
+
+            while ( !jobsRan && isRunning ) {
                 synchronized ( publicMailboxLock ) {
-//                    if ( publicMailbox.isEmpty() ) {
-                    try {
-                        publicMailboxLock.wait(100);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
+                    if ( publicMailbox.isEmpty() ) {     // todo work steal
+                        publicMailboxLock.sleep();
                     }
-//                    }
                 }
-                jobs = publicMailbox.bulkPop();
+
+                jobsRan = invokeJobs( publicMailbox );
+            }
+        }
+
+        private boolean invokeJobs( Mailbox mailbox ) {
+            EnhancedIterable<AsyncJob> jobs = mailbox.bulkPop();
+
+            for ( AsyncJob j : jobs ) {
+                try {
+                    j.invoke( null );
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
 
-//            privateMailbox.bulkPush( jobs );
-            for ( AsyncJob j : jobs ) {
-                privateMailbox.push( j );
-            }
+            return !jobs.isEmpty();
         }
     }
 }

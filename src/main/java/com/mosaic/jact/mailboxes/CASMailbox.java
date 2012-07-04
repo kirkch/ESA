@@ -33,6 +33,12 @@ public class CASMailbox extends Mailbox {
         return true;
     }
 
+    public boolean isEmpty() {
+        Element head = jobQueueRef.get();
+
+        return head == null;
+    }
+
     public void push( AsyncJob job ) {
         Element e = new Element(job);
 

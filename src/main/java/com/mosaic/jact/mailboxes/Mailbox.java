@@ -15,8 +15,10 @@ public abstract class Mailbox {
      */
     public abstract boolean maintainsOrder();
     public abstract boolean isThreadSafe();
+    public abstract boolean isEmpty();
 
     public abstract void push( AsyncJob job );
+
 
     protected abstract EnhancedIterable<AsyncJob> doPop();
 
@@ -44,24 +46,4 @@ public abstract class Mailbox {
 
         return this;
     }
-
-    // monitor.awakeAll()
-
-//    public EnhancedIterable<AsyncJob> blockingBulkPop() {
-//        EnhancedIterable<AsyncJob> jobs = bulkPop();
-//
-//        while ( jobs.isEmpty() ) {
-//            long cycleNumber = monitor.getCycleNumber();
-//
-//            jobs = bulkPop();
-//            if ( jobs.isEmpty() ) {
-//                monitor.sleepUntilAwoken( cycleNumber );
-//
-//                jobs = bulkPop();
-//            }
-//
-//        }
-//
-//        return jobs;
-//    }
 }

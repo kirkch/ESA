@@ -34,6 +34,10 @@ public class SynchronizedMailbox extends Mailbox {
         return true;
     }
 
+    public boolean isEmpty() {
+        return head == null;
+    }
+
     public void push( AsyncJob job ) {
         Element e = new Element(job);
 

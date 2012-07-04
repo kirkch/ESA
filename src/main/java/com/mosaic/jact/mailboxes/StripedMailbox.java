@@ -43,6 +43,16 @@ public class StripedMailbox {
             return true;
         }
 
+        public boolean isEmpty() {
+            for ( Mailbox m : stripes ) {
+                if ( !m.isEmpty() ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         public void push( AsyncJob job ) {
             stripes[job.hashCode() & bitmask].push( job );
 
@@ -80,6 +90,16 @@ public class StripedMailbox {
         }
 
         public boolean isThreadSafe() {
+            return true;
+        }
+
+        public boolean isEmpty() {
+            for ( Mailbox m : stripes ) {
+                if ( !m.isEmpty() ) {
+                    return false;
+                }
+            }
+
             return true;
         }
 

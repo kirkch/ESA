@@ -2,19 +2,20 @@ package com.mosaic.jact.mailboxes;
 
 import com.mosaic.jact.AsyncJob;
 import com.mosaic.lang.EnhancedIterable;
+import com.mosaic.lang.conc.Monitor;
 
 /**
  * Synchronizes access to an existing mailbox.
  */
 public class SynchronizedMailboxWrapper extends Mailbox {
     private final Mailbox wrappedMailbox;
-    private final Object  LOCK;
+    private final Monitor LOCK;
 
     public SynchronizedMailboxWrapper( Mailbox wrappedMailbox ) {
-        this( wrappedMailbox, new Object() );
+        this( wrappedMailbox, new Monitor() );
     }
 
-    public SynchronizedMailboxWrapper( Mailbox wrappedMailbox, Object lock ) {
+    public SynchronizedMailboxWrapper( Mailbox wrappedMailbox, Monitor lock ) {
         this.wrappedMailbox = wrappedMailbox;
         this.LOCK           = lock;
     }
@@ -30,6 +31,13 @@ public class SynchronizedMailboxWrapper extends Mailbox {
     public boolean isThreadSafe() {
         synchronized ( LOCK ) {
             return wrappedMailbox.isThreadSafe();
+        }
+    }
+
+    @Override
+    public boolean isEmpty() {
+        synchronized ( LOCK ) {
+            return wrappedMailbox.isEmpty();
         }
     }
 
