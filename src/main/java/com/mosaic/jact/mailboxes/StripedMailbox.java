@@ -54,12 +54,31 @@ public class StripedMailbox {
         }
 
         public void push( AsyncJob job ) {
-            stripes[job.hashCode() & bitmask].push( job );
+            selectMailbox(job.hashCode()).push( job );
 
             listener.newPost();
         }
 
-        protected EnhancedIterable<AsyncJob> doPop() {
+        protected AsyncJob doPop() {
+            int startingIndex = ((int) System.currentTimeMillis() & bitmask);
+
+            int numStripes = stripes.length;
+            for ( int i=0; i<numStripes; i++ ) {
+                AsyncJob job = selectMailbox( i+startingIndex ).pop();
+
+                if ( job != null ) {
+                    return job;
+                }
+            }
+
+            return null;
+        }
+
+        private Mailbox selectMailbox( int index ) {
+            return stripes[ index & bitmask ];
+        }
+
+        protected EnhancedIterable<AsyncJob> doBulkPop() {
             int                          numStripes = stripes.length;
             EnhancedIterable<AsyncJob>[] iterables  = new EnhancedIterable[numStripes];
             for ( int i=0; i<numStripes; i++ ) {
@@ -109,7 +128,26 @@ public class StripedMailbox {
             listener.newPost();
         }
 
-        protected EnhancedIterable<AsyncJob> doPop() {
+        protected AsyncJob doPop() {
+            int startingIndex = ((int) System.currentTimeMillis() % stripes.length);
+
+            int numStripes = stripes.length;
+            for ( int i=0; i<numStripes; i++ ) {
+                AsyncJob job = selectMailbox( i+startingIndex ).pop();
+
+                if ( job != null ) {
+                    return job;
+                }
+            }
+
+            return null;
+        }
+
+        private Mailbox selectMailbox( int index ) {
+            return stripes[ index % stripes.length ];
+        }
+
+        protected EnhancedIterable<AsyncJob> doBulkPop() {
             int                          numStripes = stripes.length;
             EnhancedIterable<AsyncJob>[] iterables  = new EnhancedIterable[numStripes];
             for ( int i=0; i<numStripes; i++ ) {

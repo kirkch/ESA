@@ -17,14 +17,28 @@ public abstract class Mailbox {
     public abstract boolean isThreadSafe();
     public abstract boolean isEmpty();
 
+
     public abstract void push( AsyncJob job );
 
+    protected abstract AsyncJob doPop();
+    protected abstract EnhancedIterable<AsyncJob> doBulkPop();
 
-    protected abstract EnhancedIterable<AsyncJob> doPop();
 
+    /**
+     *
+     * @return null if no job is in the mailbox
+     */
+    public AsyncJob pop() {
+        AsyncJob j = doPop();
+        if ( j == null && isChained() ) {
+            j = parent.pop();
+        }
+
+        return j;
+    }
 
     public EnhancedIterable<AsyncJob> bulkPop() {
-        EnhancedIterable<AsyncJob> jobs = doPop();
+        EnhancedIterable<AsyncJob> jobs = doBulkPop();
 
         if ( jobs.isEmpty() && isChained() ) {
             jobs = parent.bulkPop();

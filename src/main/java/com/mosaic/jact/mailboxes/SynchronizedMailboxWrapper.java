@@ -49,9 +49,44 @@ public class SynchronizedMailboxWrapper extends Mailbox {
     }
 
     @Override
-    protected EnhancedIterable<AsyncJob> doPop() {
+    public AsyncJob pop() {
+        synchronized ( LOCK ) {
+            return wrappedMailbox.pop();
+        }
+    }
+
+    @Override
+    public EnhancedIterable<AsyncJob> bulkPop() {
+        synchronized ( LOCK ) {
+            return wrappedMailbox.bulkPop();
+        }
+    }
+
+    @Override
+    public boolean isChained() {
+        synchronized ( LOCK ) {
+            return wrappedMailbox.isChained();
+        }
+    }
+
+    @Override
+    public Mailbox chainTo( Mailbox parentMailbox ) {
+        synchronized ( LOCK ) {
+            return wrappedMailbox.chainTo( parentMailbox );
+        }
+    }
+
+    @Override
+    protected AsyncJob doPop() {
         synchronized ( LOCK ) {
             return wrappedMailbox.doPop();
+        }
+    }
+
+    @Override
+    protected EnhancedIterable<AsyncJob> doBulkPop() {
+        synchronized ( LOCK ) {
+            return wrappedMailbox.doBulkPop();
         }
     }
 }

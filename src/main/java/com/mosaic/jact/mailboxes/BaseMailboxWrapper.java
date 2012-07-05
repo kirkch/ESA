@@ -34,7 +34,12 @@ public class BaseMailboxWrapper extends Mailbox {
     }
 
     @Override
-    protected EnhancedIterable<AsyncJob> doPop() {
+    protected EnhancedIterable<AsyncJob> doBulkPop() {
+        return wrappedMailbox.doBulkPop();
+    }
+
+    @Override
+    protected AsyncJob doPop() {
         return wrappedMailbox.doPop();
     }
 }

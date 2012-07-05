@@ -52,8 +52,21 @@ public class SynchronizedMailbox extends Mailbox {
         mailboxListener.newPost();
     }
 
+    protected AsyncJob doPop() {
+        synchronized ( this ) {
+            if ( head == null ) {
+                return null;
+            }
 
-    protected EnhancedIterable<AsyncJob> doPop() {
+            AsyncJob job = head.job;
+            head.next.prev = null;
+            head = head.next;
+
+            return job;
+        }
+    }
+
+    protected EnhancedIterable<AsyncJob> doBulkPop() {
         Element tail;
         synchronized (this) {
             tail = setPreviousPointersAndReturnTail( head );

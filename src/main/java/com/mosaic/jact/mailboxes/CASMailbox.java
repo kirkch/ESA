@@ -56,8 +56,28 @@ public class CASMailbox extends Mailbox {
         }
     }
 
+    protected AsyncJob doPop() {
+        Element head;
+        boolean wasSuccessful;
 
-    protected EnhancedIterable<AsyncJob> doPop() {
+        while (true) {
+            head = jobQueueRef.get();
+            if ( head == null ) {
+                return null;
+            }
+
+            wasSuccessful = jobQueueRef.compareAndSet( head, head.next );
+            if ( wasSuccessful ) {
+                if ( head.next != null ) {
+                    head.next.prev = null;
+                }
+
+                return head.job;
+            }
+        }
+    }
+
+    protected EnhancedIterable<AsyncJob> doBulkPop() {
         while ( true ) {
             Element head          = jobQueueRef.get();
             boolean wasSuccessful = jobQueueRef.compareAndSet( head, null );
