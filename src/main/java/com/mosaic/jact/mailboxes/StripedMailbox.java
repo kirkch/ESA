@@ -24,14 +24,16 @@ public class StripedMailbox {
 
 
 
-    private static class FastStripedMailbox extends Mailbox {
-        private final Mailbox[]       stripes;
-        private final int             bitmask;
-        private final MailboxListener listener;
+    private abstract static class BaseStripedMailbox extends Mailbox {
+        protected final Mailbox[]       stripes;
+        private   final MailboxListener listener;
 
-        FastStripedMailbox( Mailbox[] stripes, MailboxListener l ) {
+
+        protected abstract int roundIndex( int index );
+
+
+        BaseStripedMailbox( Mailbox[] stripes, MailboxListener l ) {
             this.stripes  = stripes;
-            this.bitmask  = stripes.length - 1;
             this.listener = l;
         }
 
@@ -60,7 +62,7 @@ public class StripedMailbox {
         }
 
         public AsyncJob pop() {
-            int startingIndex = ((int) System.currentTimeMillis() & bitmask);
+            int startingIndex = roundIndex( (int) System.currentTimeMillis() );
 
             int numStripes = stripes.length;
             for ( int i=0; i<numStripes; i++ ) {
@@ -72,10 +74,6 @@ public class StripedMailbox {
             }
 
             return null;
-        }
-
-        private Mailbox selectMailbox( int index ) {
-            return stripes[ index & bitmask ];
         }
 
         public EnhancedIterable<AsyncJob> bulkPop() {
@@ -92,75 +90,36 @@ public class StripedMailbox {
             }
 
             return poppedMail;
+        }
+
+        private Mailbox selectMailbox( int index ) {
+            return stripes[ roundIndex(index) ];
         }
     }
 
-    private static class SlowStripedMailbox extends Mailbox {
-        private final Mailbox[]       stripes;
-        private final MailboxListener listener;
+    private static class FastStripedMailbox extends BaseStripedMailbox {
+        private final int             bitmask;
+
+        FastStripedMailbox( Mailbox[] stripes, MailboxListener l ) {
+            super( stripes, l );
+
+            this.bitmask  = stripes.length - 1;
+        }
+
+        protected int roundIndex( int index ) {
+            return index & bitmask;
+        }
+    }
+
+    private static class SlowStripedMailbox extends BaseStripedMailbox {
 
         SlowStripedMailbox( Mailbox[] stripes, MailboxListener l ) {
-            this.stripes  = stripes;
-            this.listener = l;
+            super( stripes, l );
         }
 
-        public boolean maintainsOrder() {
-            return false;
+        protected int roundIndex( int index ) {
+            return index % stripes.length;
         }
 
-        public boolean isThreadSafe() {
-            return true;
-        }
-
-        public boolean isEmpty() {
-            for ( Mailbox m : stripes ) {
-                if ( !m.isEmpty() ) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        public void push( AsyncJob job ) {
-            stripes[job.hashCode() % stripes.length].push( job );
-
-            listener.newPost();
-        }
-
-        public AsyncJob pop() {
-            int startingIndex = ((int) System.currentTimeMillis() % stripes.length);
-
-            int numStripes = stripes.length;
-            for ( int i=0; i<numStripes; i++ ) {
-                AsyncJob job = selectMailbox( i+startingIndex ).pop();
-
-                if ( job != null ) {
-                    return job;
-                }
-            }
-
-            return null;
-        }
-
-        private Mailbox selectMailbox( int index ) {
-            return stripes[ index % stripes.length ];
-        }
-
-        public EnhancedIterable<AsyncJob> bulkPop() {
-            int                          numStripes = stripes.length;
-            EnhancedIterable<AsyncJob>[] iterables  = new EnhancedIterable[numStripes];
-            for ( int i=0; i<numStripes; i++ ) {
-                iterables[i] = stripes[i].bulkPop();
-            }
-
-
-            EnhancedIterable<AsyncJob> poppedMail = EnhancedIterable.combine( iterables );
-            if ( !poppedMail.isEmpty() ) {
-                listener.postCollected();
-            }
-
-            return poppedMail;
-        }
     }
 }
