@@ -6,9 +6,7 @@ import com.mosaic.lang.EnhancedIterable;
 /**
  *
  */
-public abstract class Mailbox {
-
-    private Mailbox parent;
+public interface Mailbox {
 
     /**
      * Returns true if the mailbox ensures jobs are popped in the same order that they were pushed.
@@ -27,4 +25,5 @@ public abstract class Mailbox {
     public abstract AsyncJob pop();
 
     public abstract EnhancedIterable<AsyncJob> bulkPop();
+
 }

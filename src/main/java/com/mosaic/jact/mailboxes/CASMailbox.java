@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  *
  */
-public class CASMailbox extends Mailbox {
+public class CASMailbox implements Mailbox {
     private final AtomicReference<Element> jobQueueRef = new AtomicReference<Element>( null );
 
     private MailboxListener mailboxListener;

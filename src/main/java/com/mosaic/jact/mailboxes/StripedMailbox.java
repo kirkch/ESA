@@ -23,8 +23,34 @@ public class StripedMailbox {
     }
 
 
+    private static class FastStripedMailbox extends BaseStripedMailbox {
+        private final int bitmask;
 
-    private abstract static class BaseStripedMailbox extends Mailbox {
+        FastStripedMailbox( Mailbox[] stripes, MailboxListener l ) {
+            super( stripes, l );
+
+            this.bitmask  = stripes.length - 1;
+        }
+
+        protected int roundIndex( int index ) {
+            return index & bitmask;
+        }
+    }
+
+    private static class SlowStripedMailbox extends BaseStripedMailbox {
+
+        SlowStripedMailbox( Mailbox[] stripes, MailboxListener l ) {
+            super( stripes, l );
+        }
+
+        protected int roundIndex( int index ) {
+            return index % stripes.length;
+        }
+
+    }
+
+
+    private abstract static class BaseStripedMailbox implements Mailbox {
         protected final Mailbox[]       stripes;
         private   final MailboxListener listener;
 
@@ -97,29 +123,4 @@ public class StripedMailbox {
         }
     }
 
-    private static class FastStripedMailbox extends BaseStripedMailbox {
-        private final int             bitmask;
-
-        FastStripedMailbox( Mailbox[] stripes, MailboxListener l ) {
-            super( stripes, l );
-
-            this.bitmask  = stripes.length - 1;
-        }
-
-        protected int roundIndex( int index ) {
-            return index & bitmask;
-        }
-    }
-
-    private static class SlowStripedMailbox extends BaseStripedMailbox {
-
-        SlowStripedMailbox( Mailbox[] stripes, MailboxListener l ) {
-            super( stripes, l );
-        }
-
-        protected int roundIndex( int index ) {
-            return index % stripes.length;
-        }
-
-    }
 }

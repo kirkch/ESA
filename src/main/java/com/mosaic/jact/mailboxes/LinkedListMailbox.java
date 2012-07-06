@@ -9,7 +9,7 @@ import java.util.Iterator;
 /**
  *
  */
-public class LinkedListMailbox extends Mailbox {
+public class LinkedListMailbox implements Mailbox {
 
     private MailboxListener mailboxListener;
 

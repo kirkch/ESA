@@ -9,7 +9,7 @@ import java.util.Iterator;
 /**
  *
  */
-public class SynchronizedMailbox extends Mailbox {
+public class SynchronizedMailbox implements Mailbox {
 
     private MailboxListener mailboxListener;
 

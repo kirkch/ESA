@@ -7,7 +7,7 @@ import com.mosaic.lang.conc.Monitor;
 /**
  * Synchronizes access to an existing mailbox.
  */
-public class SynchronizedMailboxWrapper extends Mailbox {
+public class SynchronizedMailboxWrapper implements Mailbox {
     private final Mailbox wrappedMailbox;
     private final Monitor LOCK;
 
@@ -20,42 +20,36 @@ public class SynchronizedMailboxWrapper extends Mailbox {
         this.LOCK           = lock;
     }
 
-    @Override
     public boolean maintainsOrder() {
         synchronized ( LOCK ) {
             return wrappedMailbox.maintainsOrder();
         }
     }
 
-    @Override
     public boolean isThreadSafe() {
         synchronized ( LOCK ) {
             return wrappedMailbox.isThreadSafe();
         }
     }
 
-    @Override
     public boolean isEmpty() {
         synchronized ( LOCK ) {
             return wrappedMailbox.isEmpty();
         }
     }
 
-    @Override
     public void push( AsyncJob job ) {
         synchronized ( LOCK ) {
             wrappedMailbox.push( job );
         }
     }
 
-    @Override
     public AsyncJob pop() {
         synchronized ( LOCK ) {
             return wrappedMailbox.pop();
         }
     }
 
-    @Override
     public EnhancedIterable<AsyncJob> bulkPop() {
         synchronized ( LOCK ) {
             return wrappedMailbox.bulkPop();
