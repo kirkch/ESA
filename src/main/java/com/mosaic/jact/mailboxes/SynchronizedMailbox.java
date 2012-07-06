@@ -42,9 +42,7 @@ public class SynchronizedMailbox extends Mailbox {
         Element e = new Element(job);
 
         synchronized ( this ) {
-            Element currentHead = head;
-
-            e.next = currentHead;
+            e.next = head;
 
             head = e;
         }
@@ -52,7 +50,7 @@ public class SynchronizedMailbox extends Mailbox {
         mailboxListener.newPost();
     }
 
-    protected AsyncJob doPop() {
+    public AsyncJob pop() {
         synchronized ( this ) {
             if ( head == null ) {
                 return null;
@@ -66,7 +64,7 @@ public class SynchronizedMailbox extends Mailbox {
         }
     }
 
-    protected EnhancedIterable<AsyncJob> doBulkPop() {
+    public EnhancedIterable<AsyncJob> bulkPop() {
         Element tail;
         synchronized (this) {
             tail = setPreviousPointersAndReturnTail( head );

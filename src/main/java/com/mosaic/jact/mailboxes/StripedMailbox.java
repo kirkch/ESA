@@ -59,7 +59,7 @@ public class StripedMailbox {
             listener.newPost();
         }
 
-        protected AsyncJob doPop() {
+        public AsyncJob pop() {
             int startingIndex = ((int) System.currentTimeMillis() & bitmask);
 
             int numStripes = stripes.length;
@@ -78,7 +78,7 @@ public class StripedMailbox {
             return stripes[ index & bitmask ];
         }
 
-        protected EnhancedIterable<AsyncJob> doBulkPop() {
+        public EnhancedIterable<AsyncJob> bulkPop() {
             int                          numStripes = stripes.length;
             EnhancedIterable<AsyncJob>[] iterables  = new EnhancedIterable[numStripes];
             for ( int i=0; i<numStripes; i++ ) {
@@ -128,7 +128,7 @@ public class StripedMailbox {
             listener.newPost();
         }
 
-        protected AsyncJob doPop() {
+        public AsyncJob pop() {
             int startingIndex = ((int) System.currentTimeMillis() % stripes.length);
 
             int numStripes = stripes.length;
@@ -147,7 +147,7 @@ public class StripedMailbox {
             return stripes[ index % stripes.length ];
         }
 
-        protected EnhancedIterable<AsyncJob> doBulkPop() {
+        public EnhancedIterable<AsyncJob> bulkPop() {
             int                          numStripes = stripes.length;
             EnhancedIterable<AsyncJob>[] iterables  = new EnhancedIterable[numStripes];
             for ( int i=0; i<numStripes; i++ ) {

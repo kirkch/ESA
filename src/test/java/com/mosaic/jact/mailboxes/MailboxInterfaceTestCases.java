@@ -2,7 +2,6 @@ package com.mosaic.jact.mailboxes;
 
 import com.mosaic.jact.AsyncContext;
 import com.mosaic.jact.AsyncJob;
-import com.mosaic.lang.EnhancedIterable;
 import com.mosaic.utils.SetUtils;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -229,50 +228,6 @@ public abstract class MailboxInterfaceTestCases {
             verify( mailboxListener ).postCollected();
             verifyNoMoreInteractions( mailboxListener );
         }
-    }
-
-
-
-    @Test
-    public void givenEmptyParentMailboxAndEmptyMailbox_pop_expectNoMail() {
-        Mailbox parent = mock( Mailbox.class );
-        when( parent.bulkPop() ).thenReturn( EnhancedIterable.EMPTY );
-
-        mailbox.chainTo( parent );
-
-        assertMailboxContains();
-    }
-
-    @Test
-    public void givenNonEmptyParentMailboxAndEmptyMailbox_pop_expectMailFromParentMailbox() {
-        AsyncJob job1 = mock( AsyncJob.class );
-        AsyncJob job2 = mock( AsyncJob.class );
-        AsyncJob job3 = mock( AsyncJob.class );
-
-        Mailbox parent = mock( Mailbox.class );
-        when( parent.bulkPop() ).thenReturn( EnhancedIterable.wrap(job1,job2,job3) );
-
-        mailbox.chainTo( parent );
-
-        assertMailboxContains( job1, job2, job3 );
-    }
-
-    @Test
-    public void givenNonEmptyParentMailboxAndNonEmptyMailbox_pop_expectOnlyMailFromMailbox() {
-        AsyncJob job1 = mock( AsyncJob.class );
-        AsyncJob job2 = mock( AsyncJob.class );
-        AsyncJob job3 = mock( AsyncJob.class );
-
-        Mailbox parent = mock( Mailbox.class );
-        when( parent.bulkPop() ).thenReturn( EnhancedIterable.wrap(job3) );
-
-        mailbox.chainTo( parent );
-
-        mailbox.push( job1 );
-        mailbox.push( job2 );
-
-        assertMailboxContains( job1, job2 );
-        assertMailboxContains( job3 );
     }
 
     @Test

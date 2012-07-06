@@ -48,7 +48,7 @@ public class LinkedListMailbox extends Mailbox {
         mailboxListener.newPost();
     }
 
-    protected AsyncJob doPop() {
+    public AsyncJob pop() {
         if ( head == null ) {
             return null;
         }
@@ -63,7 +63,7 @@ public class LinkedListMailbox extends Mailbox {
         return job;
     }
 
-    protected EnhancedIterable<AsyncJob> doBulkPop() {
+    public EnhancedIterable<AsyncJob> bulkPop() {
         Element tail = setPreviousPointersAndReturnTail( head );
 
         head = null;

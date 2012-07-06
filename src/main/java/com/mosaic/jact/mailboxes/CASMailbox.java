@@ -56,7 +56,7 @@ public class CASMailbox extends Mailbox {
         }
     }
 
-    protected AsyncJob doPop() {
+    public AsyncJob pop() {
         Element head;
         boolean wasSuccessful;
 
@@ -77,7 +77,7 @@ public class CASMailbox extends Mailbox {
         }
     }
 
-    protected EnhancedIterable<AsyncJob> doBulkPop() {
+    public  EnhancedIterable<AsyncJob> bulkPop() {
         while ( true ) {
             Element head          = jobQueueRef.get();
             boolean wasSuccessful = jobQueueRef.compareAndSet( head, null );
