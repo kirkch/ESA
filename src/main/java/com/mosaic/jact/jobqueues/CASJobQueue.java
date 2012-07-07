@@ -73,7 +73,7 @@ public class CASJobQueue implements JobQueue {
     public JobQueue bulkPop() {
         Element head = jobQueueRef.getAndSet( null );
 
-        return new LinkedListJobQueue( head );
+        return new LinkedListJobQueue( head, null );
     }
 
 }

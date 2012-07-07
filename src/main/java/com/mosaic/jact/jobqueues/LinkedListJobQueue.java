@@ -9,16 +9,18 @@ import com.mosaic.lang.Validate;
 public class LinkedListJobQueue implements JobQueue {
 
     private Element head = null;
+    private Element tail = null;
 
 
     public LinkedListJobQueue() {}
 
-    LinkedListJobQueue( Element head ) {
+    LinkedListJobQueue( Element head, Element tail ) {
         this.head = head;
+        this.tail = tail;
     }
 
     public boolean maintainsOrder() {
-        return false;
+        return true;
     }
 
     public boolean isThreadSafe() {
@@ -36,9 +38,13 @@ public class LinkedListJobQueue implements JobQueue {
     public void push( AsyncJob job ) {
         Element e = new Element(job);
 
-        e.next = head;
+        if ( tail != null ) {
+            tail.next = e;
+        } else {
+            head = e;
+        }
 
-        head = e;
+        tail = e;
     }
 
     public AsyncJob pop() {
@@ -57,11 +63,12 @@ public class LinkedListJobQueue implements JobQueue {
      * Returns a new mailbox with all of this mailboxes elements within it. Clearing this mailbox.
      */
     public JobQueue bulkPop() {
-        JobQueue batch = new LinkedListJobQueue( head );
+        JobQueue spawn = new LinkedListJobQueue( head, tail );
 
         this.head = null;
+        this.tail = null;
 
-        return batch;
+        return spawn;
     }
 
 
