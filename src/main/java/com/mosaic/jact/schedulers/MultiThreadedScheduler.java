@@ -3,12 +3,11 @@ package com.mosaic.jact.schedulers;
 import com.mosaic.jact.AsyncContext;
 import com.mosaic.jact.AsyncJob;
 import com.mosaic.jact.AsyncSystem;
-import com.mosaic.jact.mailboxes.LinkedListMailbox;
-import com.mosaic.jact.mailboxes.Mailbox;
-import com.mosaic.jact.mailboxes.NotifyAllMailboxWrapper;
-import com.mosaic.jact.mailboxes.StripedMailbox;
-import com.mosaic.jact.mailboxes.SynchronizedMailbox;
-import com.mosaic.jact.mailboxes.SynchronizedMailboxWrapper;
+import com.mosaic.jact.jobqueues.JobQueue;
+import com.mosaic.jact.jobqueues.LinkedListJobQueue;
+import com.mosaic.jact.jobqueues.NotifyAllJobQueueWrapper;
+import com.mosaic.jact.jobqueues.StripedJobQueueFactory;
+import com.mosaic.jact.jobqueues.SynchronizedJobQueueWrapper;
 import com.mosaic.lang.Future;
 import com.mosaic.lang.Validate;
 import com.mosaic.lang.conc.Monitor;
@@ -52,10 +51,10 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
     private int numBlockingThreads;
 
     private volatile boolean   isRunning       = false;
-    private volatile Mailbox   stripedMailbox  = null;
-    private volatile Mailbox[] publicMailboxes = null;
+    private volatile JobQueue stripedMailbox  = null;
+    private volatile JobQueue[] publicMailboxes = null;
 
-    private final Mailbox blockingMailbox = new SynchronizedMailbox();
+    private final JobQueue blockingMailbox = new SynchronizedJobQueueWrapper( new LinkedListJobQueue() );
 
     public MultiThreadedScheduler( String name ) {
         this( name, Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors()*4 );
@@ -94,13 +93,13 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
             isRunning = true;
             String threadNamePrefix = schedulerName + "_";
-            AsyncScheduler blockingScheduler = new MailboxScheduler( blockingMailbox );
+            AsyncScheduler blockingScheduler = new JobQueueScheduler( blockingMailbox );
 
 
-            publicMailboxes = new Mailbox[numNonBlockingThreads];
+            publicMailboxes = new JobQueue[numNonBlockingThreads];
             for ( int i=0; i< numNonBlockingThreads; i++ ) {
                 Monitor lock          = new Monitor();
-                Mailbox publicMailbox = new SynchronizedMailboxWrapper(new NotifyAllMailboxWrapper(new LinkedListMailbox(),lock),lock);
+                JobQueue publicMailbox = new SynchronizedJobQueueWrapper(new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),lock),lock);
                 publicMailboxes[i] = publicMailbox;
 
                 String       threadName  = threadNamePrefix+(i+1);
@@ -110,11 +109,11 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
                 threadMonitors.add( lock );
             }
 
-            stripedMailbox = StripedMailbox.createStripedMailbox( publicMailboxes );
+            stripedMailbox = StripedJobQueueFactory.stripeJobQueues( publicMailboxes );
 
             Monitor        nonBlockingMailboxLock = new Monitor();
-            Mailbox        nonBlockingMailbox     = new SynchronizedMailboxWrapper( new LinkedListMailbox(), nonBlockingMailboxLock );
-            AsyncScheduler nonBlockingScheduler   = new MailboxScheduler( nonBlockingMailbox );
+            JobQueue nonBlockingMailbox     = new SynchronizedJobQueueWrapper( new LinkedListJobQueue(), nonBlockingMailboxLock );
+            AsyncScheduler nonBlockingScheduler   = new JobQueueScheduler( nonBlockingMailbox );
 
             for ( int i=0; i<numBlockingThreads; i++ ) {
                 String       threadName  = threadNamePrefix+(i+1+numNonBlockingThreads);
@@ -146,17 +145,17 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
 
     private class NoneBlockingWorkerThread extends Thread {
-        private final Mailbox      publicMailbox;
+        private final JobQueue publicMailbox;
         private final Monitor      publicMailboxLock;
-        private final Mailbox      privateMailbox     = new LinkedListMailbox();
+        private final JobQueue privateMailbox     = new LinkedListJobQueue();
         private final AsyncContext asyncContext;
 
-        public NoneBlockingWorkerThread( String threadName, Mailbox publicMailbox, Monitor publicMailboxLock, AsyncScheduler blockableScheduler ) {
+        public NoneBlockingWorkerThread( String threadName, JobQueue publicMailbox, Monitor publicMailboxLock, AsyncScheduler blockableScheduler ) {
             super(threadName + "-NonBlocking");
 
             this.publicMailbox     = publicMailbox;
             this.publicMailboxLock = publicMailboxLock;
-            this.asyncContext      = new AsyncContext( new MailboxScheduler(publicMailbox), new MailboxScheduler(privateMailbox), blockableScheduler );
+            this.asyncContext      = new AsyncContext( new JobQueueScheduler(publicMailbox), new JobQueueScheduler(privateMailbox), blockableScheduler );
         }
 
 
@@ -191,7 +190,7 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
             }
         }
 
-        private boolean invokeJobs( Mailbox mailbox ) {
+        private boolean invokeJobs( JobQueue mailbox ) {
             AsyncJob j = mailbox.pop();
             if ( j != null) {
                 try {
@@ -211,17 +210,17 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
 
     private class BlockableWorkerThread extends Thread {
-        private final Mailbox mailbox;
+        private final JobQueue mailbox;
         private final Monitor mailboxMonitor;
 
         private final AsyncContext asyncContext;
 
-        public BlockableWorkerThread( String threadName, Mailbox mailbox, Monitor mailboxMonitor, AsyncScheduler nonBlockingScheduler ) {
+        public BlockableWorkerThread( String threadName, JobQueue mailbox, Monitor mailboxMonitor, AsyncScheduler nonBlockingScheduler ) {
             super(threadName + "-Blockable");
 
             this.mailbox        = mailbox;
             this.mailboxMonitor = mailboxMonitor;
-            this.asyncContext   = new AsyncContext( nonBlockingScheduler, nonBlockingScheduler, new MailboxScheduler(mailbox) );
+            this.asyncContext   = new AsyncContext( nonBlockingScheduler, nonBlockingScheduler, new JobQueueScheduler(mailbox) );
         }
 
 

@@ -1,4 +1,4 @@
-package com.mosaic.jact.mailboxes;
+package com.mosaic.jact.jobqueues;
 
 import com.mosaic.jact.AsyncJob;
 import com.mosaic.lang.conc.Monitor;
@@ -6,19 +6,20 @@ import com.mosaic.lang.conc.Monitor;
 /**
  *
  */
-public class NotifyAllMailboxWrapper extends BaseMailboxWrapper {
+public class NotifyAllJobQueueWrapper extends BaseJobQueueWrapper {
+
     private final Monitor LOCK;
 
-    public NotifyAllMailboxWrapper( Mailbox wrappedMailbox, Monitor lock ) {
+    public NotifyAllJobQueueWrapper( JobQueue wrappedMailbox, Monitor lock ) {
         super( wrappedMailbox );
 
         LOCK = lock;
     }
 
-    @Override
     public void push( AsyncJob job ) {
         super.push( job );
 
         LOCK.wakeAll();
     }
+
 }

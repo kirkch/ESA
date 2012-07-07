@@ -1,16 +1,16 @@
 package com.mosaic.jact.schedulers;
 
 import com.mosaic.jact.AsyncJob;
-import com.mosaic.jact.mailboxes.Mailbox;
+import com.mosaic.jact.jobqueues.JobQueue;
 import com.mosaic.lang.Future;
 
 /**
  *
  */
-public class MailboxScheduler implements AsyncScheduler {
-    private Mailbox mailbox;
+public class JobQueueScheduler implements AsyncScheduler {
+    private JobQueue mailbox;
 
-    public MailboxScheduler( Mailbox mb ) {
+    public JobQueueScheduler( JobQueue mb ) {
         this.mailbox = mb;
     }
 

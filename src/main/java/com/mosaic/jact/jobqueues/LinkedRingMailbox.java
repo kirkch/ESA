@@ -1,4 +1,4 @@
-package com.mosaic.jact.mailboxes;
+package com.mosaic.jact.jobqueues;
 
 /**
  * An optimised hybrid mailbox. When consumers outpace or keep up with producers this mailbox stores messages within
