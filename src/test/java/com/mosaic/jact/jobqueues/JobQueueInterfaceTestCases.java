@@ -22,7 +22,7 @@ public abstract class JobQueueInterfaceTestCases {
     protected JobQueue         jobQueue;
     private   boolean          guaranteesOrder;
 
-    protected boolean isStriped = false;
+    protected boolean bulkPopMayReturnLessThanAllJobs = false;
 
     protected JobQueueInterfaceTestCases( JobQueue mb ) {
         this.jobQueue         = mb;
@@ -69,7 +69,7 @@ public abstract class JobQueueInterfaceTestCases {
         jobQueue.push( job2 );
 
         jobQueue.bulkPop();
-        if ( isStriped ) {
+        if ( bulkPopMayReturnLessThanAllJobs ) {
             jobQueue.bulkPop();
         }
 
@@ -115,7 +115,7 @@ public abstract class JobQueueInterfaceTestCases {
         SetUtils.SetComparison r = SetUtils.compare( expectedSet, actualSet );
 
         assertEquals( "The following elements were not expected: "+r.onlyInSetB, 0, r.onlyInSetB.size() );
-        assertEquals( "The following elements were expected, but did not occur: "+r.onlyInSetA, 0, r.onlyInSetA.size() );
+        assertEquals( "The following elements were expected, but did not occur: " + r.onlyInSetA, 0, r.onlyInSetA.size() );
     }
 
     @Test
@@ -130,7 +130,7 @@ public abstract class JobQueueInterfaceTestCases {
 
         jobQueue.bulkPop();
 
-        if ( isStriped ) {
+        if ( bulkPopMayReturnLessThanAllJobs ) {
             jobQueue.bulkPop();
             jobQueue.bulkPop();
         }
@@ -165,6 +165,69 @@ public abstract class JobQueueInterfaceTestCases {
         if ( guaranteesOrder ) {
             assertEquals( 0, consumerThread.mismatchCount );
         }
+    }
+
+    @Test
+    public void pushTwentyJobs_ensureAllTwentyPopAgain() {
+        int numMessages = 20;
+
+        for ( int i=0; i<numMessages; i++ ) {
+            jobQueue.push( mock(AsyncJob.class) );
+        }
+
+        for ( int i=0; i<numMessages; i++ ) {
+            assertNotNull( "popping index "+i+" expected job", jobQueue.pop() );
+        }
+
+        assertNull( jobQueue.pop() );
+    }
+
+    @Test
+    public void timePushPop() {
+        time();
+        time();
+        time();
+        time();
+    }
+
+    private void time() {
+        long     startNanos = System.nanoTime();
+        AsyncJob job        = mock( AsyncJob.class );
+
+        final int numMessages = 1000000;
+        for ( int i=0; i<numMessages; i++ ) {
+            jobQueue.push( job );
+            jobQueue.pop();
+        }
+
+        long endNanos       = System.nanoTime();
+        long durationMillis = endNanos - startNanos;
+
+        System.out.println("timePushPop:      " + this.getClass().getSimpleName() + " "+ (durationMillis/1000000.0) + "ms");
+    }
+
+//    @Test
+    public void timePushBulkPop() {
+        long     startNanos = System.nanoTime();
+        AsyncJob job        = mock( AsyncJob.class );
+
+        final int numBatches = 100000;
+        final int batchSize  = 10;
+        for ( int i=0; i<numBatches; i++ ) {
+            for ( int j=0; j<batchSize; j++ ) {
+                jobQueue.push( job );
+            }
+
+            do {
+                jobQueue.bulkPop();
+            } while (jobQueue.hasContents());
+        }
+
+        long endNanos       = System.nanoTime();
+        long durationMillis = endNanos - startNanos;
+
+
+        System.out.println("timePushBulkPop: " + this.getClass().getSimpleName() + " "+ (durationMillis/1000000.0) + "ms");
     }
 
     private static class ProducerThread extends Thread {
