@@ -149,21 +149,35 @@ public class MultiThreadedSchedulerTest extends JUnitTools {
     }
 
     @Test
-    public void scheduleJobThatSchedulesAnotherLocalJob_expectBothJobsToRun() throws InterruptedException {
+    public void scheduleJobThatSchedulesAnotherLocalJobPrivately_expectBothJobsToRun() throws InterruptedException {
         String                 schedulerName = nextName();
         MultiThreadedScheduler scheduler     = new MultiThreadedScheduler( schedulerName, 2, 1 );
 
         scheduler.start();
 
         CountDownLatch latch = new CountDownLatch(2);
-        scheduler.schedule( new CountDownJobs(latch) );
+        scheduler.schedule( new CountDownJobsLocally(latch) );
 
         boolean wasTriggered = latch.await( 500, TimeUnit.MILLISECONDS );
         assertTrue( wasTriggered );
     }
 
     @Test
-    public void scheduleJobThatSchedulesManyOtherJobs_expectAllJobsToRun() throws InterruptedException {
+    public void scheduleJobThatSchedulesAnotherLocalJobPublically_expectBothJobsToRun() throws InterruptedException {
+        String                 schedulerName = nextName();
+        MultiThreadedScheduler scheduler     = new MultiThreadedScheduler( schedulerName, 2, 1 );
+
+        scheduler.start();
+
+        CountDownLatch latch = new CountDownLatch(2);
+        scheduler.schedule( new CountDownJobsPublicly(latch) );
+
+        boolean wasTriggered = latch.await( 5500, TimeUnit.MILLISECONDS );
+        assertTrue( wasTriggered );
+    }
+
+    @Test
+    public void scheduleJobThatSchedulesManyOtherJobsLocally_expectAllJobsToRun() throws InterruptedException {
         String                 schedulerName = nextName();
         MultiThreadedScheduler scheduler     = new MultiThreadedScheduler( schedulerName, 2, 1 );
 
@@ -174,7 +188,7 @@ public class MultiThreadedSchedulerTest extends JUnitTools {
         CountDownLatch latch = new CountDownLatch(numTopLevelJobs*2);
 
         for ( int i=0; i<numTopLevelJobs; i++ ) {
-            scheduler.schedule( new CountDownJobs(latch) );
+            scheduler.schedule( new CountDownJobsLocally(latch) );
         }
 
         boolean wasTriggered = latch.await( 500, TimeUnit.MILLISECONDS );
@@ -197,10 +211,10 @@ public class MultiThreadedSchedulerTest extends JUnitTools {
         }
     }
 
-    private static class CountDownJobs extends AsyncJob {
+    private static class CountDownJobsLocally extends AsyncJob {
         private CountDownLatch latch;
 
-        public CountDownJobs( CountDownLatch latch ) {
+        public CountDownJobsLocally( CountDownLatch latch ) {
             this.latch = latch;
         }
 
@@ -209,7 +223,23 @@ public class MultiThreadedSchedulerTest extends JUnitTools {
             latch.countDown();
 
             asyncContext.scheduleLocally( new CountDownJob(latch) );
-//            asyncContext.schedule( new CountDownJob(latch) );
+
+            return null;
+        }
+    }
+
+    private static class CountDownJobsPublicly extends AsyncJob {
+        private CountDownLatch latch;
+
+        public CountDownJobsPublicly( CountDownLatch latch ) {
+            this.latch = latch;
+        }
+
+        @Override
+        public Object invoke( AsyncContext asyncContext ) throws Exception {
+            latch.countDown();
+
+            asyncContext.schedule( new CountDownJob(latch) );
 
             return null;
         }

@@ -8,15 +8,15 @@ import com.mosaic.lang.Validate;
  */
 public class LinkedListJobQueue implements JobQueue {
 
-    private Element head = null;
-    private Element tail = null;
+    private Element popEnd    = null;
+    private Element insertEnd = null;
 
 
     public LinkedListJobQueue() {}
 
-    LinkedListJobQueue( Element head, Element tail ) {
-        this.head = head;
-        this.tail = tail;
+    LinkedListJobQueue( Element popEnd, Element insertEnd ) {
+        this.popEnd = popEnd;
+        this.insertEnd = insertEnd;
     }
 
     public boolean maintainsOrder() {
@@ -28,7 +28,7 @@ public class LinkedListJobQueue implements JobQueue {
     }
 
     public boolean isEmpty() {
-        return head == null;
+        return popEnd == null;
     }
 
     public boolean hasContents() {
@@ -38,23 +38,27 @@ public class LinkedListJobQueue implements JobQueue {
     public void push( AsyncJob job ) {
         Element e = new Element(job);
 
-        if ( tail != null ) {
-            tail.next = e;
+        if ( insertEnd == null ) {
+            popEnd    = e;
+            insertEnd = e;
         } else {
-            head = e;
+            insertEnd.popNextElement = e;
+            insertEnd                = e;
         }
-
-        tail = e;
     }
 
     public AsyncJob pop() {
-        if ( head == null ) {
+        if ( popEnd == null ) {
             return null;
         }
 
-        AsyncJob job = head.job;
+        AsyncJob job = popEnd.job;
 
-        head = head.next;
+        popEnd = popEnd.popNextElement;
+
+        if ( popEnd == null ) {
+            insertEnd = null;
+        }
 
         return job;
     }
@@ -63,10 +67,10 @@ public class LinkedListJobQueue implements JobQueue {
      * Returns a new mailbox with all of this mailboxes elements within it. Clearing this mailbox.
      */
     public JobQueue bulkPop() {
-        JobQueue spawn = new LinkedListJobQueue( head, tail );
+        JobQueue spawn = new LinkedListJobQueue( popEnd, insertEnd );
 
-        this.head = null;
-        this.tail = null;
+        this.popEnd = null;
+        this.insertEnd = null;
 
         return spawn;
     }
@@ -75,7 +79,7 @@ public class LinkedListJobQueue implements JobQueue {
     static class Element {
         public final AsyncJob job;
 
-        public Element next;
+        public Element popNextElement;
 
         public Element( AsyncJob job ) {
             Validate.notNull( job, "job" );

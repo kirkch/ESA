@@ -6,7 +6,9 @@ import com.mosaic.jact.jobqueues.LinkedListJobQueue.Element;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * A thread safe, lockless version of LinkedListJobQueue.
+ * A thread safe, lockless version of LinkedListJobQueue. Faster than the synchronized linked list but it does not
+ * guarantee order. In fact it will tend to reverse it, so most recent added will usually be next to execute over old
+ * ones. Meaning that under load this queue is at risk of suffering from staleness.
  */
 public class CASJobQueue implements JobQueue {
     private final AtomicReference<Element> jobQueueRef = new AtomicReference<Element>( null );
@@ -36,7 +38,7 @@ public class CASJobQueue implements JobQueue {
         while ( true ) {
             Element currentHead = jobQueueRef.get();
 
-            e.next = currentHead;
+            e.popNextElement = currentHead;
 
             boolean wasSuccessful = jobQueueRef.compareAndSet( currentHead, e );
             if ( wasSuccessful ) {
@@ -55,7 +57,7 @@ public class CASJobQueue implements JobQueue {
                 return null;
             }
 
-            wasSuccessful = jobQueueRef.compareAndSet( head, head.next );
+            wasSuccessful = jobQueueRef.compareAndSet( head, head.popNextElement );
             if ( wasSuccessful ) {
                 return head.job;
             }

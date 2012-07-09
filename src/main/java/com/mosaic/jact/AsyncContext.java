@@ -36,6 +36,7 @@ public class AsyncContext {
      * Do not schedule jobs that could block the thread here.
      */
     public <T> Future<T> scheduleLocally( AsyncJob<T> job ) {
+// todo have an assertion mode that checks the calling thread is the owning thread
         return privateScheduler.schedule( job );
     }
 

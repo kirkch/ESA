@@ -183,16 +183,40 @@ public abstract class JobQueueInterfaceTestCases {
     }
 
     @Test
-    public void timePushPop() {
-        time();
-        time();
-        time();
-        time();
+    public void insertPop_insertPop() {
+        AsyncJob job1 = mock(AsyncJob.class);
+        AsyncJob job2 = mock(AsyncJob.class);
+
+        jobQueue.push( job1 );
+        assertTrue( job1 == jobQueue.pop() );
+        assertTrue( jobQueue.isEmpty() );
+
+        jobQueue.push( job2 );
+        assertTrue( job2 == jobQueue.pop() );
+        assertTrue( jobQueue.isEmpty() );
     }
 
-    private void time() {
+    @Test
+    public void timePushPop() {
+        doTimePushPop();
+        doTimePushPop();
+        doTimePushPop();
+        doTimePushPop();
+    }
+
+    private void doTimePushPop() {
         long     startNanos = System.nanoTime();
-        AsyncJob job        = mock( AsyncJob.class );
+        AsyncJob job        = new AsyncJob() {
+            @Override
+            public Object invoke( AsyncContext asyncContext ) throws Exception {
+                return null;
+            }
+
+            @Override
+            public int hashCode() {
+                return 77;
+            }
+        };
 
         final int numMessages = 1000000;
         for ( int i=0; i<numMessages; i++ ) {
@@ -208,6 +232,13 @@ public abstract class JobQueueInterfaceTestCases {
 
 //    @Test
     public void timePushBulkPop() {
+        doTimePushBulkPop();
+        doTimePushBulkPop();
+        doTimePushBulkPop();
+        doTimePushBulkPop();
+    }
+
+    private void doTimePushBulkPop() {
         long     startNanos = System.nanoTime();
         AsyncJob job        = mock( AsyncJob.class );
 
@@ -219,7 +250,12 @@ public abstract class JobQueueInterfaceTestCases {
             }
 
             do {
-                jobQueue.bulkPop();
+                JobQueue child = jobQueue.bulkPop();
+
+                AsyncJob j = child.pop();
+                while ( j != null ) {
+                    j = child.pop();
+                }
             } while (jobQueue.hasContents());
         }
 
