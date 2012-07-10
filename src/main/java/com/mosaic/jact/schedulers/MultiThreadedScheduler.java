@@ -18,23 +18,23 @@ import java.util.List;
 /**
  * Optimised to avoid lock contention. Scales out across many many CPU cores.<p/>
  *
- * This scheduler consists of two tiers of mailboxes. A mailbox stores work until a thread becomes available to action the work.
- * Each thread is assigned two mailboxes, a public mailbox which is thread safe and a private mailbox which is not thread safe.<p/>
+ * This scheduler consists of two tiers of job queues. A job queue stores work until a thread becomes available to action the work.
+ * Each thread is assigned two job queues, a public job queue which is thread safe and a private job queue which is not thread safe.<p/>
  *
- * When scheduling work via this scheduler, a threads public mailbox will be selected without taking on any locks via the hashcode
+ * When scheduling work via this scheduler, a threads public job queue will be selected without taking on any locks via the hashcode
  * of the work being scheduled. This will spread the work across the threads and avoid any single point of contention, improving
- * scalability of the scheduler. The work will then remain in the public mailbox until a thread is ready to pull the work in.<p/>
+ * scalability of the scheduler. The work will then remain in the public job queue until a thread is ready to pull the work in.<p/>
  *
- * When a thread is started it loops over any work in its local mailbox. The local mailbox is extremely fast, and involves
- * no locks or thread synchronisation of any kind. It doesn't even use CAS or volatile statements. When the private mailbox
- * is empty, as it will be when the thread first starts then the thread will try to pull work in from its public mailbox.
- * Which does involve synchronisation. If the public mailbox is also empty, then the thread will try to steal work from
- * other public mailboxes. If that also fails then the thread will go to sleep on its public mailboxes monitor,
- * waking only when new work is pushed onto its public mailbox. <p/>
+ * When a thread is started it loops over any work in its local job queue. The local job queue is extremely fast, and involves
+ * no locks or thread synchronisation of any kind. It doesn't even use CAS or volatile statements. When the private job queue
+ * is empty, as it will be when the thread first starts then the thread will try to pull work in from its public job queue.
+ * Which does involve synchronisation. If the public job queue is also empty, then the thread will try to steal work from
+ * other public job queues. If that also fails then the thread will go to sleep on its public job queues monitor,
+ * waking only when new work is pushed onto its public job queue. <p/>
  *
  * This approach is biased towards throughput, giving excellent latency under load. The weaknesses of this approach is
- * that latency can suffer when the private mailboxes become saturated or work is not spread evenly over the public
- * mailboxes creating hot spots.<p/>
+ * that latency can suffer when the private job queues become saturated or work is not spread evenly over the public
+ * job queues creating hot spots.<p/>
  *
  * Once a thread picks up a piece of work, that work has the option of scheduling more work. When it does this it
  * is given the choice between making the work available to any of the CPU cores (at the cost of going through
@@ -51,10 +51,9 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
     private       int    numBlockingThreads;
 
     private volatile boolean    isRunning       = false;
-    private volatile JobQueue   stripedMailbox  = null;
-    private volatile JobQueue[] publicMailboxes = null;
+    private volatile JobQueue   stripedJobQueue = null;
 
-    private final JobQueue blockingMailbox = new SynchronizedJobQueueWrapper( new LinkedListJobQueue() );
+
 
     public MultiThreadedScheduler( String name ) {
         this( name, Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors()*4 );
@@ -63,7 +62,7 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
     /**
      *
      * @param name
-     * @param numNonBlockingThreads number of worker threads to use; public mailbox scheduling will be fastest if a value 2^n is used
+     * @param numNonBlockingThreads number of worker threads to use; public jobQueue scheduling will be fastest if a value 2^n is used
      * @param numBlockingThreads    number of worker threads reserved for jobs that block
      */
     public MultiThreadedScheduler( String name, int numNonBlockingThreads, int numBlockingThreads ) {
@@ -77,7 +76,7 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
     public <T> Future<T> schedule( AsyncJob<T> job ) {
         try {
-            stripedMailbox.push( job );
+            stripedJobQueue.push( job );
         } catch ( NullPointerException e ) {
             throw new IllegalStateException( String.format("%s scheduler is not running",schedulerName) );
         }
@@ -92,22 +91,26 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
             }
 
             isRunning = true;
+
+            Monitor        blockingJobsMonitor     = new Monitor();
+            JobQueue       blockingJobsQueue       = new SynchronizedJobQueueWrapper( new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),blockingJobsMonitor), blockingJobsMonitor );
+
             String         threadNamePrefix  = schedulerName + "_";
-            AsyncScheduler blockingScheduler = new JobQueueScheduler( blockingMailbox );
+            AsyncScheduler blockingScheduler = new JobQueueScheduler( blockingJobsQueue );
 
 
-            publicMailboxes = new JobQueue[numNonBlockingThreads];
-            stripedMailbox  = StripedJobQueueFactory.stripeJobQueues( publicMailboxes );
+            JobQueue[] publicJobQueues = new JobQueue[numNonBlockingThreads];
+            stripedJobQueue = StripedJobQueueFactory.stripeJobQueues( publicJobQueues );
 
             for ( int i=0; i< numNonBlockingThreads; i++ ) {
-                Monitor  lock          = new Monitor();
-                JobQueue publicMailbox = new SynchronizedJobQueueWrapper(new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),lock),lock);
+                Monitor  lock           = new Monitor();
+                JobQueue publicJobQueue = new SynchronizedJobQueueWrapper(new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),lock),lock);
 
-                publicMailboxes[i] = publicMailbox;
+                publicJobQueues[i] = publicJobQueue;
 
                 String                   threadName   = threadNamePrefix+(i+1);
-                NoneBlockingWorkerThread workerThread = new NoneBlockingWorkerThread( threadName, publicMailbox, publicMailbox, lock, blockingScheduler );
-//                NoneBlockingWorkerThread workerThread = new NoneBlockingWorkerThread( threadName, stripedMailbox, publicMailbox, lock, blockingScheduler );
+                NoneBlockingWorkerThread workerThread = new NoneBlockingWorkerThread( threadName, stripedJobQueue, publicJobQueue, lock, blockingScheduler );
+
                 workerThread.start();
 
                 threadMonitors.add( lock );
@@ -115,18 +118,17 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
 
 
-            Monitor        nonBlockingMailboxLock = new Monitor();
-            JobQueue nonBlockingMailbox     = new SynchronizedJobQueueWrapper( new LinkedListJobQueue(), nonBlockingMailboxLock );
-            AsyncScheduler nonBlockingScheduler   = new JobQueueScheduler( nonBlockingMailbox );
+
+            AsyncScheduler nonBlockingScheduler = new JobQueueScheduler(stripedJobQueue);
 
             for ( int i=0; i<numBlockingThreads; i++ ) {
-                String       threadName  = threadNamePrefix+(i+1+numNonBlockingThreads);
+                String threadName  = threadNamePrefix+(i+1+numNonBlockingThreads);
 
-                BlockableWorkerThread workerThread = new BlockableWorkerThread( threadName, nonBlockingMailbox, nonBlockingMailboxLock, nonBlockingScheduler );
+                BlockableWorkerThread workerThread = new BlockableWorkerThread( threadName, blockingJobsQueue, blockingJobsMonitor, nonBlockingScheduler );
                 workerThread.start();
             }
 
-            threadMonitors.add( nonBlockingMailboxLock );
+            threadMonitors.add( blockingJobsMonitor );
         }
     }
 
@@ -136,7 +138,7 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
     public void stop() {
         synchronized ( LOCK ) {
-            stripedMailbox = null;
+            stripedJobQueue = null;
             isRunning      = false;
 
             for ( Monitor lock : threadMonitors ) {
@@ -149,53 +151,53 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
 
     private class NoneBlockingWorkerThread extends Thread {
-        private final JobQueue     publicMailbox;
-        private final Monitor      publicMailboxLock;
-        private final JobQueue     privateMailbox     = new LinkedListJobQueue();
+        private final JobQueue     publicJobQueue;
+        private final Monitor      publicJobQueueLock;
+        private final JobQueue     privateJobQueue     = new LinkedListJobQueue();
         private final AsyncContext asyncContext;
 
-        public NoneBlockingWorkerThread( String threadName, JobQueue strippedJobQueue, JobQueue publicMailbox, Monitor publicMailboxLock, AsyncScheduler blockableScheduler ) {
+        public NoneBlockingWorkerThread( String threadName, JobQueue strippedJobQueue, JobQueue publicJobQueue, Monitor publicJobQueueLock, AsyncScheduler blockableScheduler ) {
             super(threadName + "-NonBlocking");
 
-            this.publicMailbox     = publicMailbox;
-            this.publicMailboxLock = publicMailboxLock;
-            this.asyncContext      = new AsyncContext( new JobQueueScheduler(strippedJobQueue), new JobQueueScheduler(privateMailbox), blockableScheduler );
+            this.publicJobQueue     = publicJobQueue;
+            this.publicJobQueueLock = publicJobQueueLock;
+            this.asyncContext       = new AsyncContext( new JobQueueScheduler(strippedJobQueue), new JobQueueScheduler(privateJobQueue), blockableScheduler );
         }
 
 
         @Override
         public void run() {
             while ( isRunning ) {
-                invokeAllJobsFromPrivateMailbox();
+                invokeAllJobsFromPrivateJobQueue();
 
-                invokeOneBatchOfJobsFromPublicMailboxBlocking();
+                invokeOneBatchOfJobsFromPublicJobQueueBlocking();
             }
         }
 
-        private void invokeAllJobsFromPrivateMailbox() {
-            boolean jobsRan = invokeJobs( privateMailbox );
+        private void invokeAllJobsFromPrivateJobQueue() {
+            boolean jobsRan = invokeJobs( privateJobQueue );
 
             while ( jobsRan ) {
-                jobsRan = invokeJobs( privateMailbox );
+                jobsRan = invokeJobs( privateJobQueue );
             }
         }
 
-        private void invokeOneBatchOfJobsFromPublicMailboxBlocking() {
-            boolean jobsRan = invokeJobs( publicMailbox );
+        private void invokeOneBatchOfJobsFromPublicJobQueueBlocking() {
+            boolean jobsRan = invokeJobs( publicJobQueue );
 
             while ( !jobsRan && isRunning ) {
-                synchronized ( publicMailboxLock ) {
-                    if ( publicMailbox.isEmpty() ) {     // todo work steal
-                        publicMailboxLock.sleep();
+                synchronized ( publicJobQueueLock ) {
+                    if ( publicJobQueue.isEmpty() ) {     // todo work steal
+                        publicJobQueueLock.sleep();
                     }
                 }
 
-                jobsRan = invokeJobs( publicMailbox );
+                jobsRan = invokeJobs( publicJobQueue );
             }
         }
 
-        private boolean invokeJobs( JobQueue mailbox ) {
-            AsyncJob j = mailbox.pop();
+        private boolean invokeJobs( JobQueue jobQueue ) {
+            AsyncJob j = jobQueue.pop();
             if ( j == null) {
                 return false;
             }
@@ -212,37 +214,40 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
 
     private class BlockableWorkerThread extends Thread {
-        private final JobQueue mailbox;
-        private final Monitor mailboxMonitor;
+        private final JobQueue jobQueue;
+        private final Monitor  jobQueueMonitor;
 
         private final AsyncContext asyncContext;
 
-        public BlockableWorkerThread( String threadName, JobQueue mailbox, Monitor mailboxMonitor, AsyncScheduler nonBlockingScheduler ) {
+        public BlockableWorkerThread( String threadName, JobQueue blockingJobsQueue, Monitor blockingJobsQueueMonitor, AsyncScheduler nonBlockingScheduler ) {
             super(threadName + "-Blockable");
 
-            this.mailbox        = mailbox;
-            this.mailboxMonitor = mailboxMonitor;
-            this.asyncContext   = new AsyncContext( nonBlockingScheduler, nonBlockingScheduler, new JobQueueScheduler(mailbox) );
+            this.jobQueue        = blockingJobsQueue;
+            this.jobQueueMonitor = blockingJobsQueueMonitor;
+            this.asyncContext    = new AsyncContext( nonBlockingScheduler, nonBlockingScheduler, new JobQueueScheduler(blockingJobsQueue) );
         }
 
 
         @Override
         public void run() {
             while ( isRunning ) {
-//                AsyncJob job = mailbox.pop();
-//
-//                if ( job == null ) {
-//                    synchronized ( mailboxMonitor ) { // todo is sleeping while holding this lock dangerous?
-//                        job = mailbox.pop();
-//
-//                        if ( job == null ) {
-//                            mailboxMonitor.sleep();
-//                        }
-//                    }
-//                }
-//
-//
-//                invokeJob(job);
+                AsyncJob job = jobQueue.pop();
+
+                if ( job == null ) {
+                    synchronized ( jobQueueMonitor ) {
+                        job = jobQueue.pop();
+
+                        if ( job == null ) {
+                            jobQueueMonitor.sleep();
+                        }
+                    }
+                } else {
+                    try {
+                        job.invoke( asyncContext );
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
             }
         }
     }

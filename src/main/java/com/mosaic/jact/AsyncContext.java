@@ -31,7 +31,8 @@ public class AsyncContext {
 
     /**
      * Schedule the job on the thread that is bound to this context. Involves less allocation and context switching
-     * overhead when compared to spreading the load out across multiple threads but at the cost of less parallelism.<p/>
+     * overhead when compared to spreading the load out across multiple threads but at the cost of less parallelism.
+     * In early benchmarks this showed a performance improvement from 93.554ms for 100k jobs queued to 14.195ms.<p/>
      *
      * Do not schedule jobs that could block the thread here.
      */

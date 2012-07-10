@@ -172,7 +172,21 @@ public class MultiThreadedSchedulerTest extends JUnitTools {
         CountDownLatch latch = new CountDownLatch(2);
         scheduler.schedule( new CountDownJobsPublicly(latch) );
 
-        boolean wasTriggered = latch.await( 5500, TimeUnit.MILLISECONDS );
+        boolean wasTriggered = latch.await( 500, TimeUnit.MILLISECONDS );
+        assertTrue( wasTriggered );
+    }
+
+    @Test
+    public void scheduleJobThatSchedulesABlockingJob_expectBothJobsToRun() throws InterruptedException {
+        String                 schedulerName = nextName();
+        MultiThreadedScheduler scheduler     = new MultiThreadedScheduler( schedulerName, 2, 1 );
+
+        scheduler.start();
+
+        CountDownLatch latch = new CountDownLatch(2);
+        scheduler.schedule( new CountDownJobsBlocking(latch) );
+
+        boolean wasTriggered = latch.await( 500, TimeUnit.MILLISECONDS );
         assertTrue( wasTriggered );
     }
 
@@ -189,6 +203,25 @@ public class MultiThreadedSchedulerTest extends JUnitTools {
 
         for ( int i=0; i<numTopLevelJobs; i++ ) {
             scheduler.schedule( new CountDownJobsLocally(latch) );
+        }
+
+        boolean wasTriggered = latch.await( 500, TimeUnit.MILLISECONDS );
+        assertTrue( wasTriggered );
+    }
+
+    @Test
+    public void scheduleJobThatSchedulesManyOtherBlockingJobs_expectAllJobsToRun() throws InterruptedException {
+        String                 schedulerName = nextName();
+        MultiThreadedScheduler scheduler     = new MultiThreadedScheduler( schedulerName, 2, 1 );
+
+        scheduler.start();
+
+        int numTopLevelJobs = 20;
+
+        CountDownLatch latch = new CountDownLatch(numTopLevelJobs*2);
+
+        for ( int i=0; i<numTopLevelJobs; i++ ) {
+            scheduler.schedule( new CountDownJobsBlocking(latch) );
         }
 
         boolean wasTriggered = latch.await( 500, TimeUnit.MILLISECONDS );
@@ -240,6 +273,23 @@ public class MultiThreadedSchedulerTest extends JUnitTools {
             latch.countDown();
 
             asyncContext.schedule( new CountDownJob(latch) );
+
+            return null;
+        }
+    }
+
+    private static class CountDownJobsBlocking extends AsyncJob {
+        private CountDownLatch latch;
+
+        public CountDownJobsBlocking( CountDownLatch latch ) {
+            this.latch = latch;
+        }
+
+        @Override
+        public Object invoke( AsyncContext asyncContext ) throws Exception {
+            latch.countDown();
+
+            asyncContext.scheduleBlockableJob( new CountDownJob(latch) );
 
             return null;
         }
