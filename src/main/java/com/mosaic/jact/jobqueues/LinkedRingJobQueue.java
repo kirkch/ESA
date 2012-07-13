@@ -4,20 +4,13 @@ import com.mosaic.jact.AsyncJob;
 import com.mosaic.utils.MathUtils;
 
 /**
- * An optimised hybrid job queue. When consumers outpace or keep up with producers this job queue stores messages within
- * a pre-allocated ring buffer (or circular array) which out performs linked lists in both throughput and low latency
- * by keeping its impact on the GC low. However during periods when producers out pace consumers then the an extra
- * ring buffer will be allocated and attached to the original via a linked list. Thus giving a hybrid performance of
- * a 'batched' linked list.<p/>
+ * A hybrid job queue. When consumers outpace or keep up with producers this job queue stores messages within
+ * a pre-allocated ring buffer (or circular array). However during periods when producers out pace consumers then an extra
+ * ring buffer will be allocated and attached to the original via a linked list of ring buffers. <p/>
  *
- * Batch popping from this data structure involves creating a new array and copying messages from the ring buffer into
- * the new array. The number of messages returned in one batch pop will never be more than the length of a single ring
- * buffer. When decorated with a synchronizing job queue decorator the performance of popping in batch is greatly improved.
- * Otherwise the overheads are not usually worth it. Copying an array is faster than selecting a subsection of a linked
- * list, but slower than returning the entire linked list. Both approaches to linked lists have different trade offs.<p/>
- *
- * All in all LinkedRingJobQueue offers an excellent balance of trade offs and is extremely fast. Preferable to LinkedRingJobQueue
- * when willing to reserve memory to speed up the job queue.
+ * Batch popping from this data structure involves creating a new array to replace the one that was returned by the batch. The
+ * number of messages returned in one batch pop will never be more than the length of a single ring
+ * buffer. <p/>
  */
 public class LinkedRingJobQueue implements JobQueue {
 

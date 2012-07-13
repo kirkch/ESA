@@ -81,7 +81,7 @@ public class StripedJobQueueFactory {
         }
 
         public AsyncJob pop() {
-            int startingIndex = roundIndex( (int) System.currentTimeMillis() );
+            int startingIndex = roundIndex( 0 );
 
             int numStripes = stripes.length;
             for ( int i=0; i<numStripes; i++ ) {

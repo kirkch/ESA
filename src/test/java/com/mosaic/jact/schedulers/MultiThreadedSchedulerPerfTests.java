@@ -3,20 +3,38 @@ package com.mosaic.jact.schedulers;
 import com.mosaic.jact.AsyncContext;
 import com.mosaic.jact.AsyncJob;
 import com.mosaic.lang.conc.Monitor;
-import org.junit.Ignore;
 import org.junit.Test;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  *
  */
-@Ignore
+//@Ignore
 public class MultiThreadedSchedulerPerfTests {
 
-    // 10th July 2012 - public jobqueue               : 15m jobs per second using all 8 cores (fairly consistent)
+    // from within intellij
+    // -ea -server -Xms100m -Xmx100m -XX:MaxPermSize=100m -XX:PermSize=100m -Dsun.net.inetaddr.ttl=120 -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode -XX:+CMSIncrementalPacing -XX:CMSIncrementalDutyCycle=10 -XX:CMSIncrementalDutyCycleMin=0 -XX:SurvivorRatio=2 -XX:NewRatio=3 -XX:+CMSClassUnloadingEnabled  -XX:+HeapDumpOnOutOfMemoryError -XX:SurvivorRatio=2 -XX:NewRatio=3
+
+    // 10th July 2012 - public jobqueue               : 15-17m jobs per second using all 8 cores (fairly consistent)
     //                  public then private job queue : 52m jobs per second using 6.5 cores   (have seen as much as 122m using 6 cores)
     //                                                  varies widely (40m to 122m)
+
+    // 11th July 2012 - public queue configured with 9 threads (gives better distribution of work) : 50-95m jobs per second 6 cores,
+    //                  tended to be closer to 80m on average
+    //                  6 threads : 55-85m using 5 cores
+    //
+    // did some memory tuning
+    // new settings: -server -Xms400m -Xmx400m -XX:MaxPermSize=100m -XX:PermSize=100m -Dsun.net.inetaddr.ttl=120 -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode -XX:+CMSIncrementalPacing -XX:CMSIncrementalDutyCycle=10 -XX:CMSIncrementalDutyCycleMin=0 -XX:SurvivorRatio=2 -XX:NewRatio=3 -XX:-CMSClassUnloadingEnabled
+    //
+    // 11th July 2012 - 8 threads, local scheduling - 100m to 200m 6.5 cores
+    //                  private scheduling - 16m-20m 7.5 cores
+    //
+    // doubling memory again say 160m-195m as the most common range; memory usage is making a big difference
+    // changing from using a linked list to a array that is large enough to take ALL jobs, performance increased to 211m
+    // however if the array was not large enough and was being linked then performance dropped to 100m
 
     @Test
     public void throughputTest() throws InterruptedException {
@@ -38,6 +56,57 @@ public class MultiThreadedSchedulerPerfTests {
         lock.sleep();
     }
 
+
+    // 11th July 2012 - 8 core 2011 macbook pro laptop .. 1.9m jobs per second only used 2.5 cores ouch
+    //
+    // following new settings
+    // -server -Xms400m -Xmx400m -XX:MaxPermSize=100m -XX:PermSize=100m -Dsun.net.inetaddr.ttl=120 -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalMode -XX:+CMSIncrementalPacing -XX:CMSIncrementalDutyCycle=10 -XX:CMSIncrementalDutyCycleMin=0 -XX:SurvivorRatio=2 -XX:NewRatio=3 -XX:-CMSClassUnloadingEnabled
+    //
+    // 11th July 2012 - 1.9-2.0m
+
+    @Test
+    public void throughputTestJavaExecutor() throws InterruptedException {
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+
+        ProgressSheet[] progressSheets = setupProgressSheets( 20 );
+        startReportingProgress( progressSheets );
+
+
+        int numTopLevelJobs = 10000;
+
+        for ( int i=0; i<numTopLevelJobs; i++ ) {
+            executor.submit( new SumJobRunnable(progressSheets[i%progressSheets.length],executor) );
+        }
+
+        Monitor lock = new Monitor();
+        lock.sleep();
+    }
+
+
+    // 11th July 2012 - 370-380m jobs per second using 8 cores
+
+    @Test
+    public void noSchedulingJust8Threads() {
+        ProgressSheet[] progressSheets = setupProgressSheets( 8 );
+        startReportingProgress( progressSheets );
+
+        for ( int i=0; i<8; i++ ) {
+            final ProgressSheet progressSheet = progressSheets[i];
+
+            new Thread() {
+                public void run() {
+                    while (true) {
+                        progressSheet.inc();
+                    }
+                }
+            }.start();
+        }
+
+        Monitor lock = new Monitor();
+        lock.sleep();
+    }
+    // todo disruptors
+    // todo akka
 
     private ProgressSheet[] setupProgressSheets( int numProgressSheets ) {
         ProgressSheet[] sheets = new ProgressSheet[numProgressSheets];
@@ -129,10 +198,27 @@ public class MultiThreadedSchedulerPerfTests {
         public Object invoke( AsyncContext asyncContext ) throws Exception {
             progressSheet.inc();
 
-            asyncContext.scheduleLocally( this );
+            asyncContext.schedule( this );
+//            asyncContext.scheduleLocally( this );
 
             return null;
         }
     }
 
+    private static class SumJobRunnable implements Runnable {
+        private ProgressSheet   progressSheet;
+        private ExecutorService executor;
+
+        public SumJobRunnable( ProgressSheet progressSheet, ExecutorService executor ) {
+            this.progressSheet = progressSheet;
+            this.executor      = executor;
+        }
+
+        public void run() {
+            progressSheet.inc();
+
+            executor.submit( this );
+        }
+
+    }
 }

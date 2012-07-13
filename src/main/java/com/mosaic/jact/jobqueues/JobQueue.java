@@ -31,6 +31,8 @@ public interface JobQueue {
      * mailbox. Any thread safe guarantees of this mailbox will not be maintained by the mailbox returned by this method.
      * The assumption is that the caller of this method will consume the mail directly from the new mailbox without having
      * to share access to the new mailbox.
+     *
+     * @return never returns null
      */
     public JobQueue bulkPop();
 

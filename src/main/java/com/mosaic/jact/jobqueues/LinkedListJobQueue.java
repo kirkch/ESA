@@ -15,7 +15,7 @@ public class LinkedListJobQueue implements JobQueue {
     public LinkedListJobQueue() {}
 
     LinkedListJobQueue( Element popEnd, Element insertEnd ) {
-        this.popEnd = popEnd;
+        this.popEnd    = popEnd;
         this.insertEnd = insertEnd;
     }
 
@@ -69,7 +69,7 @@ public class LinkedListJobQueue implements JobQueue {
     public JobQueue bulkPop() {
         JobQueue spawn = new LinkedListJobQueue( popEnd, insertEnd );
 
-        this.popEnd = null;
+        this.popEnd    = null;
         this.insertEnd = null;
 
         return spawn;

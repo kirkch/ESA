@@ -3,9 +3,11 @@ package com.mosaic.jact.schedulers;
 import com.mosaic.jact.AsyncContext;
 import com.mosaic.jact.AsyncJob;
 import com.mosaic.jact.AsyncSystem;
+import com.mosaic.jact.jobqueues.BlockingJobQueueWrapper;
 import com.mosaic.jact.jobqueues.JobQueue;
 import com.mosaic.jact.jobqueues.LinkedListJobQueue;
 import com.mosaic.jact.jobqueues.NotifyAllJobQueueWrapper;
+import com.mosaic.jact.jobqueues.PublicPrivateJobQueue;
 import com.mosaic.jact.jobqueues.StripedJobQueueFactory;
 import com.mosaic.jact.jobqueues.SynchronizedJobQueueWrapper;
 import com.mosaic.lang.Future;
@@ -151,64 +153,38 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
 
     private class NoneBlockingWorkerThread extends Thread {
-        private final JobQueue     publicJobQueue;
-        private final Monitor      publicJobQueueLock;
         private final JobQueue     privateJobQueue     = new LinkedListJobQueue();
         private final AsyncContext asyncContext;
+
+        private final JobQueue jobQueue;
 
         public NoneBlockingWorkerThread( String threadName, JobQueue strippedJobQueue, JobQueue publicJobQueue, Monitor publicJobQueueLock, AsyncScheduler blockableScheduler ) {
             super(threadName + "-NonBlocking");
 
-            this.publicJobQueue     = publicJobQueue;
-            this.publicJobQueueLock = publicJobQueueLock;
-            this.asyncContext       = new AsyncContext( new JobQueueScheduler(strippedJobQueue), new JobQueueScheduler(privateJobQueue), blockableScheduler );
+            this.asyncContext = new AsyncContext( new JobQueueScheduler(strippedJobQueue), new JobQueueScheduler(privateJobQueue), blockableScheduler );
+            this.jobQueue     = new BlockingJobQueueWrapper( new PublicPrivateJobQueue(publicJobQueue,privateJobQueue), publicJobQueueLock );
         }
 
 
         @Override
         public void run() {
             while ( isRunning ) {
-                invokeAllJobsFromPrivateJobQueue();
-
-                invokeOneBatchOfJobsFromPublicJobQueueBlocking();
+                invokeJobs( jobQueue.bulkPop() );
             }
         }
 
-        private void invokeAllJobsFromPrivateJobQueue() {
-            boolean jobsRan = invokeJobs( privateJobQueue );
+        private void invokeJobs( JobQueue jobQueue ) {
+            AsyncJob j = jobQueue.pop();
 
-            while ( jobsRan ) {
-                jobsRan = invokeJobs( privateJobQueue );
-            }
-        }
-
-        private void invokeOneBatchOfJobsFromPublicJobQueueBlocking() {
-            boolean jobsRan = invokeJobs( publicJobQueue );
-
-            while ( !jobsRan && isRunning ) {
-                synchronized ( publicJobQueueLock ) {
-                    if ( publicJobQueue.isEmpty() ) {     // todo work steal
-                        publicJobQueueLock.sleep();
-                    }
+            while ( j != null ) {
+                try {
+                    j.invoke( asyncContext );
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
 
-                jobsRan = invokeJobs( publicJobQueue );
+                j = jobQueue.pop();
             }
-        }
-
-        private boolean invokeJobs( JobQueue jobQueue ) {
-            AsyncJob j = jobQueue.pop();
-            if ( j == null) {
-                return false;
-            }
-
-            try {
-                j.invoke( asyncContext );
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            return true;
         }
     }
 
