@@ -224,7 +224,11 @@ public class MultiThreadedSchedulerTest extends JUnitTools {
             scheduler.schedule( new CountDownJobsBlocking(latch) );
         }
 
-        boolean wasTriggered = latch.await( 500, TimeUnit.MILLISECONDS );
+        boolean wasTriggered = latch.await( 15000, TimeUnit.MILLISECONDS );
+
+        if ( latch.getCount() > 0 ) {
+            System.out.println( "latch " + latch.getCount() );
+        }
         assertTrue( wasTriggered );
     }
 

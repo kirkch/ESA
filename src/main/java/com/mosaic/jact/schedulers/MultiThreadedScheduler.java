@@ -55,6 +55,7 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
     private volatile boolean    isRunning       = false;
     private volatile JobQueue   stripedJobQueue = null;
 
+    public volatile JobQueue threadSafeBlockingJobQueue;
 
 
     public MultiThreadedScheduler( String name ) {
@@ -95,10 +96,11 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
             isRunning = true;
 
             Monitor        blockingJobsMonitor     = new Monitor();
-            JobQueue       blockingJobsQueue       = new SynchronizedJobQueueWrapper( new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),blockingJobsMonitor), blockingJobsMonitor );
+            JobQueue underlyingNonThreadsafeBlockingJobQueue = new SynchronizedJobQueueWrapper( new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),blockingJobsMonitor), blockingJobsMonitor );
+            threadSafeBlockingJobQueue = new SynchronizedJobQueueWrapper( new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),blockingJobsMonitor), blockingJobsMonitor );
 
             String         threadNamePrefix  = schedulerName + "_";
-            AsyncScheduler blockingScheduler = new JobQueueScheduler( blockingJobsQueue );
+            AsyncScheduler blockingScheduler = new JobQueueScheduler( threadSafeBlockingJobQueue );
 
 
             JobQueue[] publicJobQueues = new JobQueue[numNonBlockingThreads];
@@ -110,8 +112,8 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
                 publicJobQueues[i] = publicJobQueue;
 
-                String                   threadName   = threadNamePrefix+(i+1);
-                NoneBlockingWorkerThread workerThread = new NoneBlockingWorkerThread( threadName, stripedJobQueue, publicJobQueue, lock, blockingScheduler );
+                String       threadName   = threadNamePrefix+(i+1);
+                WorkerThread workerThread = createNonBlockingWorkerThread( threadName, stripedJobQueue, publicJobQueue, lock, blockingScheduler );
 
                 workerThread.start();
 
@@ -126,7 +128,7 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
             for ( int i=0; i<numBlockingThreads; i++ ) {
                 String threadName  = threadNamePrefix+(i+1+numNonBlockingThreads);
 
-                BlockableWorkerThread workerThread = new BlockableWorkerThread( threadName, blockingJobsQueue, blockingJobsMonitor, nonBlockingScheduler );
+                WorkerThread workerThread = createBlockableWorkerThread( threadName, threadSafeBlockingJobQueue, blockingJobsMonitor, nonBlockingScheduler );
                 workerThread.start();
             }
 
@@ -152,17 +154,31 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
     }
 
 
-    private class NoneBlockingWorkerThread extends Thread {
-        private final JobQueue     privateJobQueue     = new LinkedListJobQueue();
+    private WorkerThread createNonBlockingWorkerThread( String threadName, JobQueue strippedJobQueue, JobQueue publicJobQueue, Monitor stripeLock, AsyncScheduler blockableScheduler ) {
+        JobQueue privateJobQueue = new LinkedListJobQueue();
+
+        AsyncContext asyncContext = new AsyncContext( new JobQueueScheduler(strippedJobQueue), new JobQueueScheduler(privateJobQueue), blockableScheduler );
+        JobQueue     jobQueue     = new SynchronizedJobQueueWrapper( new BlockingJobQueueWrapper( new PublicPrivateJobQueue(publicJobQueue,privateJobQueue), stripeLock ), stripeLock );
+
+        return new WorkerThread( threadName+"-NonBlocking", asyncContext, jobQueue );
+    }
+
+    private WorkerThread createBlockableWorkerThread( String threadName, JobQueue blockingJobsQueue, Monitor blockingJobsQueueMonitor, AsyncScheduler nonBlockingScheduler ) {
+        JobQueue     jobQueue     = new SynchronizedJobQueueWrapper( new BlockingJobQueueWrapper( blockingJobsQueue, blockingJobsQueueMonitor ), blockingJobsQueueMonitor);
+        AsyncContext asyncContext = new AsyncContext( nonBlockingScheduler, nonBlockingScheduler, new JobQueueScheduler(blockingJobsQueue) );
+
+        return new WorkerThread( threadName+"-Blockable", asyncContext, jobQueue );
+    }
+
+    private class WorkerThread extends Thread {
         private final AsyncContext asyncContext;
+        private final JobQueue     jobQueue;
 
-        private final JobQueue jobQueue;
+        public WorkerThread( String threadName, AsyncContext asyncContext, JobQueue jobQueue ) {
+            super(threadName);
 
-        public NoneBlockingWorkerThread( String threadName, JobQueue strippedJobQueue, JobQueue publicJobQueue, Monitor publicJobQueueLock, AsyncScheduler blockableScheduler ) {
-            super(threadName + "-NonBlocking");
-
-            this.asyncContext = new AsyncContext( new JobQueueScheduler(strippedJobQueue), new JobQueueScheduler(privateJobQueue), blockableScheduler );
-            this.jobQueue     = new BlockingJobQueueWrapper( new PublicPrivateJobQueue(publicJobQueue,privateJobQueue), publicJobQueueLock );
+            this.asyncContext = asyncContext;
+            this.jobQueue     = jobQueue;
         }
 
 
@@ -184,46 +200,6 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
                 }
 
                 j = jobQueue.pop();
-            }
-        }
-    }
-
-
-    private class BlockableWorkerThread extends Thread {
-        private final JobQueue jobQueue;
-        private final Monitor  jobQueueMonitor;
-
-        private final AsyncContext asyncContext;
-
-        public BlockableWorkerThread( String threadName, JobQueue blockingJobsQueue, Monitor blockingJobsQueueMonitor, AsyncScheduler nonBlockingScheduler ) {
-            super(threadName + "-Blockable");
-
-            this.jobQueue        = blockingJobsQueue;
-            this.jobQueueMonitor = blockingJobsQueueMonitor;
-            this.asyncContext    = new AsyncContext( nonBlockingScheduler, nonBlockingScheduler, new JobQueueScheduler(blockingJobsQueue) );
-        }
-
-
-        @Override
-        public void run() {
-            while ( isRunning ) {
-                AsyncJob job = jobQueue.pop();
-
-                if ( job == null ) {
-                    synchronized ( jobQueueMonitor ) {
-                        job = jobQueue.pop();
-
-                        if ( job == null ) {
-                            jobQueueMonitor.sleep();
-                        }
-                    }
-                } else {
-                    try {
-                        job.invoke( asyncContext );
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
             }
         }
     }
