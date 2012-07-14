@@ -3,6 +3,7 @@ package com.mosaic.jact.schedulers;
 import com.mosaic.jact.AsyncContext;
 import com.mosaic.jact.AsyncJob;
 import com.mosaic.lang.conc.Monitor;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.util.concurrent.ExecutorService;
@@ -12,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  *
  */
-//@Ignore
+@Ignore
 public class MultiThreadedSchedulerPerfTests {
 
     // from within intellij
@@ -53,7 +54,7 @@ public class MultiThreadedSchedulerPerfTests {
         }
 
         Monitor lock = new Monitor();
-        lock.sleep();
+        lock.sleep(42000);
     }
 
 
@@ -64,7 +65,7 @@ public class MultiThreadedSchedulerPerfTests {
     //
     // 11th July 2012 - 1.9-2.0m
 
-    @Test
+//    @Test
     public void throughputTestJavaExecutor() throws InterruptedException {
         ExecutorService executor = Executors.newFixedThreadPool(8);
 
@@ -85,7 +86,7 @@ public class MultiThreadedSchedulerPerfTests {
 
     // 11th July 2012 - 370-380m jobs per second using 8 cores
 
-    @Test
+//    @Test
     public void noSchedulingJust8Threads() {
         ProgressSheet[] progressSheets = setupProgressSheets( 8 );
         startReportingProgress( progressSheets );

@@ -45,7 +45,7 @@ import java.util.List;
  */
 public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
-    private final Monitor            LOCK    = new Monitor();
+    private final Monitor       LOCK    = new Monitor();
     private final List<Monitor> threadMonitors = new ArrayList<Monitor>();
 
     private final String schedulerName;
@@ -55,11 +55,10 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
     private volatile boolean    isRunning       = false;
     private volatile JobQueue   stripedJobQueue = null;
 
-    public volatile JobQueue threadSafeBlockingJobQueue;
 
 
     public MultiThreadedScheduler( String name ) {
-        this( name, Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors()*4 );
+        this( name, Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors()*10 );
     }
 
     /**
@@ -95,45 +94,49 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
 
             isRunning = true;
 
-            Monitor        blockingJobsMonitor     = new Monitor();
-            JobQueue underlyingNonThreadsafeBlockingJobQueue = new SynchronizedJobQueueWrapper( new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),blockingJobsMonitor), blockingJobsMonitor );
-            threadSafeBlockingJobQueue = new SynchronizedJobQueueWrapper( new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),blockingJobsMonitor), blockingJobsMonitor );
-
-            String         threadNamePrefix  = schedulerName + "_";
-            AsyncScheduler blockingScheduler = new JobQueueScheduler( threadSafeBlockingJobQueue );
+            Monitor            blockingJobsMonitor      = new Monitor();
+            LinkedListJobQueue underlyingBlockableQueue = new LinkedListJobQueue();
 
 
-            JobQueue[] publicJobQueues = new JobQueue[numNonBlockingThreads];
-            stripedJobQueue = StripedJobQueueFactory.stripeJobQueues( publicJobQueues );
+            String threadNamePrefix = schedulerName + "_";
 
-            for ( int i=0; i< numNonBlockingThreads; i++ ) {
-                Monitor  lock           = new Monitor();
-                JobQueue publicJobQueue = new SynchronizedJobQueueWrapper(new NotifyAllJobQueueWrapper(new LinkedListJobQueue(),lock),lock);
-
-                publicJobQueues[i] = publicJobQueue;
-
-                String       threadName   = threadNamePrefix+(i+1);
-                WorkerThread workerThread = createNonBlockingWorkerThread( threadName, stripedJobQueue, publicJobQueue, lock, blockingScheduler );
-
-                workerThread.start();
-
-                threadMonitors.add( lock );
-            }
-
-
-
-
-            AsyncScheduler nonBlockingScheduler = new JobQueueScheduler(stripedJobQueue);
-
-            for ( int i=0; i<numBlockingThreads; i++ ) {
-                String threadName  = threadNamePrefix+(i+1+numNonBlockingThreads);
-
-                WorkerThread workerThread = createBlockableWorkerThread( threadName, threadSafeBlockingJobQueue, blockingJobsMonitor, nonBlockingScheduler );
-                workerThread.start();
-            }
-
-            threadMonitors.add( blockingJobsMonitor );
+            createAndStartNonBlockingWorkerThreads( blockingJobsMonitor, underlyingBlockableQueue, threadNamePrefix );
+            createAndStartBlockableWorkerThreads( blockingJobsMonitor, underlyingBlockableQueue, threadNamePrefix );
         }
+    }
+
+    private void createAndStartNonBlockingWorkerThreads( Monitor blockingJobsMonitor, LinkedListJobQueue underlyingBlockableQueue, String threadNamePrefix ) {
+        AsyncScheduler blockingScheduler = new JobQueueScheduler( new SynchronizedJobQueueWrapper(new NotifyAllJobQueueWrapper(underlyingBlockableQueue,blockingJobsMonitor),blockingJobsMonitor) );
+
+        JobQueue[] publicJobQueues = new JobQueue[numNonBlockingThreads];
+        stripedJobQueue = StripedJobQueueFactory.stripeJobQueues( publicJobQueues );
+
+        for ( int i=0; i< numNonBlockingThreads; i++ ) {
+            Monitor            stripeLock               = new Monitor();
+            LinkedListJobQueue underlyingPublicJobQueue = new LinkedListJobQueue();
+
+            publicJobQueues[i] = new SynchronizedJobQueueWrapper(new NotifyAllJobQueueWrapper(underlyingPublicJobQueue,stripeLock),stripeLock);
+
+            String       threadName   = threadNamePrefix+(i+1);
+            WorkerThread workerThread = createNonBlockingWorkerThread( threadName, stripedJobQueue, underlyingPublicJobQueue, stripeLock, blockingScheduler );
+
+            workerThread.start();
+
+            threadMonitors.add( stripeLock );
+        }
+    }
+
+    private void createAndStartBlockableWorkerThreads( Monitor blockingJobsMonitor, JobQueue threadSafeBlockingJobQueue, String threadNamePrefix ) {
+        AsyncScheduler nonBlockingScheduler = new JobQueueScheduler(stripedJobQueue);
+
+        for ( int i=0; i<numBlockingThreads; i++ ) {
+            String threadName  = threadNamePrefix+(i+1+numNonBlockingThreads);
+
+            WorkerThread workerThread = createBlockableWorkerThread( threadName, threadSafeBlockingJobQueue, blockingJobsMonitor, nonBlockingScheduler );
+            workerThread.start();
+        }
+
+        threadMonitors.add( blockingJobsMonitor );
     }
 
     public boolean isRunning() {
@@ -204,4 +207,3 @@ public class MultiThreadedScheduler implements AsyncScheduler, AsyncSystem {
         }
     }
 }
-
