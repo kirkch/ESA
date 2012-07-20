@@ -1,5 +1,26 @@
 
-jAct (Java Actors)
+ESA - Event Sourced Actors
 ===
 
-Java threading tools. Will become the basis of River's async model.
+Very fast, modular framework for creating asynchronous programs. Light weight, 100% Java framework with no external dependencies.
+
+
+Exectors                -   2million messages/second
+Thread switching actors -  16m mps
+Thread pinned actors    - 160m mps
+
+                 Figures from a reference machine (a 2011, 2ghz, 8 core, mac book pro laptop)
+
+
+Actors:
+  Actors are based on asynchronous processing of code.
+  Simplify reasoning about concurrent code by serializing all access to the actor.
+  Very fast because it can fetch multiple 'jobs' within one small synchronized block.
+  Pinning actors to a single thread can remove all synchronization entirely, really speeding up the code.
+
+Event Source Actors:
+  Persistent version of Actors.
+  The input and output queues for the actor are journaled to disk or a db.
+  Assuming that the actors methods are fully deterministic, then replaying the same events in the same order will always
+  reach the same state.
+  The journaled events can be trimmed as and when a snapshot of the actor's state is persisted.

@@ -1,0 +1,11 @@
+<html>
+<body>
+Actors provide asynchronise access to a data structure. They linearize access to the data structure and reduce the amount
+of overhead required to access the data structure by batching multiple calls into few lock calls.
+
+Overhead is reduced in two ways, thus maximising throughput of the system. Firstly calls to the actor are stored in a queue,
+which in the case of a backlog of messages will allow the actor to pull multiple matches as once. Limiting the amount of
+concurrency coordination required. The second mechanism provides a bigger boost by removing all coordination overheads by
+allowing actors assigned to the same thread to coordinate with no locking at all.
+</body>
+</html>

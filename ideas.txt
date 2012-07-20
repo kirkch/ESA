@@ -1,0 +1,42 @@
+
+
+
+new library: bcUnit  (Backwards Compatibility Unit Testing)
+-------
+
+maintain a versioned definition file, and during unit testing ensure that the latest definition is backwards compatible
+with it.
+
+recommended use case: verifying rpc support is backwards compatible
+
+does not extend to foreward/backward compatibility of persistence tiers
+
+
+Cache Mosaic: Lite weight, high performance, modular caching solution with no external dependencies
+JobQueue Mosaic (jqMosaic): Lite weight, high performance job queueing solution with no external dependencies
+
+
+
+
+ESA - Event Sourced Actors
+
+Provides a lite weight, 100% Java, actor solution built on top of super fast jqMosaic with optional
+local persistence/robustness provided via event sourcing/journalling the actor's job queues.
+
+- journaled in and out queues
+- snapshoted state capture used to clear journals
+(supports local disk, cassandra and hive)
+
+Clustered ESA
+
+- Distribute persistent actors across a cluster of JVMs.
+- supports clean rollbacks via two step rolling releases:
+   - release upgraded schema, must support current system and next version of system
+   - deploy next version of system (may be rolled back)
+   - once happy, release next version of schema that the current version of system must support (may no longer rollback system)
+
+provide unit testing tools for checking version compatibility of schema
+
+
+
+
