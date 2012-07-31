@@ -19,8 +19,23 @@ Actors:
   Pinning actors to a single thread can remove all synchronization entirely, really speeding up the code.
 
 Event Source Actors:
-  Persistent version of Actors.
+  Persistent, and recoverable version of Actors.
   The input and output queues for the actor are journaled to disk or a db.
   Assuming that the actors methods are fully deterministic, then replaying the same events in the same order will always
   reach the same state.
   The journaled events can be trimmed as and when a snapshot of the actor's state is persisted.
+
+
+
+Contacts
+--------
+
+Chris Kirk - kirkch@gmail.com (http://chriskirk.blogspot.co.uk/)
+
+
+The Legal Bit
+-------------
+
+This library is open source.
+You are welcome to use this library freely, with almost no restrictions. We only ask that you contribute back to the main library and give us feedback on your experiences. However that said, it should be made clear that the contributors to this library accept no responsibility for any hair loss, frustration or other foreseeable or unforeseeable consequences that may or may not follow. Use of this library, or code derived from its work is viewed as accepting these terms.
+Contributions to this library are made in the same spirit of above terms.

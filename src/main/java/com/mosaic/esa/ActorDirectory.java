@@ -1,4 +1,4 @@
-package com.mosaic.jact.actors;
+package com.mosaic.esa;
 
 import com.mosaic.Future;
 
@@ -26,19 +26,23 @@ public interface ActorDirectory {
 
     /**
      * Start an named actor of the specified type. The specified class must have a no-arg constructor which will
-     * be used to instantiate the underlying instance. Named actors may be located via a call to lookup.
+     * be used to instantiate the underlying instance. Named actors may be located via a call to lookup.<p/>
+     *
+     * If actor already exists then that actor will be returned. Else the newly created actor will be returned.
      */
-    public <T> T newActor( String actorName, Class<T> actorType );
+    public <T> Future<T> newActorIfAbsent( String actorName, Class<T> actorType );
 
     /**
-     * Start an named actor of the specified type. Named actors may be located via a call to lookup.
+     * Start an named actor of the specified type. Named actors may be located via a call to lookup.<p/>
+     *
+     * If actor already exists then that actor will be returned. Else the newly created actor will be returned.
      */
-    public <T> T newActor( String actorName, Class<T> actorType, T underlyingInstance );
+    public <T> Future<T> newActorIfAbsent( String actorName, Class<T> actorType, T underlyingInstance );
 
     /**
      * Locate and return a reference to the specified named actor.
      */
-    public <T> T lookup( String actorName, Class<T> expectedActorType );
+    public <T> Future<T> lookup( String actorName, Class<T> expectedActorType );
 
     /**
      * Wait for the actors current workload to finish and then release its memory back to the void.

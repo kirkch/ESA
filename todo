@@ -8,14 +8,79 @@ Scenarios
 
 
 Single actor, single thread
+   no persistence
+   uncaught exception
+   low memory warning
 
+   with journaling
+   recover from journals
+   with snapshoting
+   recover from journals+snapshots
 
 
 
 Multiple actors, single thread
+   no persistence
+   with journaling
+   recover from journals
+   with snapshoting
+   recover from journals+snapshots
 
 
 
 
 Multiple actors, multiple threads
+   no persistence
+   with journaling
+   recover from journals
+   with snapshoting
+   recover from journals+snapshots
 
+
+Rebalance actors across threads
+
+
+
+
+
+
+Journal/snapshot to disk
+Journal/snapshot to cassandra
+
+
+Stats
+
+- num actors
+- num actors by type
+- num messages processed per second
+- queue length
+- actor journal queue length
+- storage space used by actor
+- num actors in memory at this time
+
+
+
+Ideas
+=====
+
+
+    // changeZeeing( whenMillis:long, newZeeing:String )
+    // reverseChangeZeeing( whenMillis:long, newZeeing:String )
+
+
+    // StorageRef - automatically dropped on low memory warnings, loaded lazily
+    //    provide faster loading actors (due to lazy loading) plus a mechanism where if the data structure is too large it can overflow to disk;
+    //    which provides a mechanism for creating custom indexes
+    // object, set,stack, queue, map (inline,linkedList), tree (avl,splay,btree,redblack) ;  for all except object: bounded, unbounded, expiry policy
+
+
+
+Clustering
+----------
+
+
+
+    public void isMasterInstance( boolean flag );
+
+    // mergeChangeZeeing( whenMillis:long, newZeeing:String )  // occurred on a partitioned instance of the actor which is now being rolled out to the master
+    // reverseMergeOfChangeZeeing( whenMillis:long, newZeeing:String )
