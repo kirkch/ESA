@@ -47,6 +47,6 @@ public interface ActorDirectory {
     /**
      * Wait for the actors current workload to finish and then release its memory back to the void.
      */
-    public <T> Future terminateActor( T actor );
+    public <T> Future cancelActor( T actor );
 
 }

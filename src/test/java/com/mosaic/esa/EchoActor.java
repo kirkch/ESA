@@ -8,12 +8,14 @@ import com.mosaic.Future;
 @SuppressWarnings("unchecked")
 public class EchoActor implements Echoer {
 
+
+    @Override
+    public Future<String> id() {
+        return new Future(Integer.toString(System.identityHashCode(this)));
+    }
+
     public Future<String> echo( String txt ) {
-        Future<String> f = new Future();
-
-        f.completeWithResult( txt );
-
-        return f;
+        return new Future(txt);
     }
 
 }

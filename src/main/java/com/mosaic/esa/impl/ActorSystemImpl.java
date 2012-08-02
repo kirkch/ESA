@@ -8,6 +8,10 @@ import com.mosaic.esa.reflection.ReflectionUtils;
 import com.mosaic.schedulers.MultiThreadedScheduler;
 import net.sf.cglib.proxy.Enhancer;
 
+import java.util.concurrent.ConcurrentHashMap;
+
+import static com.mosaic.esa.reflection.ReflectionUtils.tidyClassName;
+
 /**
  *
  */
@@ -48,15 +52,27 @@ public class ActorSystemImpl implements ActorSystem {
         return proxiedActor;
     }
 
+    private final ConcurrentHashMap actors = new ConcurrentHashMap();
+
     @Override
-    public <T> Future<T> newActorIfAbsent( String actorName, Class<T> actorType ) {
-        throwIfNotRunning( actorType );
+    public <T> Future<T> newActorIfAbsent( String actorName, Class<T> targetActorType ) {
+        throwIfNotRunning( targetActorType );
 
         try {
-            T actor = ReflectionUtils.newInstance(actorType);
-            T proxiedActor = (T) Enhancer.create( actorType, new ActorMethodInterceptor(actor));
+            T actor = ReflectionUtils.newInstance(targetActorType);
+            T proxiedActor = (T) Enhancer.create( targetActorType, new ActorMethodInterceptor(actor));
 
-            return new Future(proxiedActor);
+
+            Object existingActor = actors.putIfAbsent( actorName, proxiedActor );
+            if ( existingActor == null ) {
+                return new Future(proxiedActor);
+            } else if ( !targetActorType.isAssignableFrom(existingActor.getClass()) ) {
+                String errorDescription = String.format("an actor named '%s' already exists, however its type (%s) does not match the target type of %s",actorName, tidyClassName(existingActor.getClass()), tidyClassName(targetActorType) );
+
+                return new Future( new ClassCastException(errorDescription) );
+            } else {
+                return new Future(existingActor);
+            }
         } catch ( ReflectionException ex ) {
             return new Future(ex);
         }
@@ -77,7 +93,7 @@ public class ActorSystemImpl implements ActorSystem {
     }
 
     @Override
-    public <T> Future terminateActor( T actor ) {
+    public <T> Future cancelActor( T actor ) {
         return null;
     }
 
